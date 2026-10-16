@@ -36,12 +36,13 @@ Columnas del archivo de puntos:
     571 x 511 nodos, paso 2.0000' x 2.0000', lat [-6.0000, 13.0000], lon [-83.0000, -66.0000]
     duplicados 0 (con valor distinto 0), nodos faltantes 0, N en [-41.879, 32.773] m
     El encabezado declara tide_system = tide_free
-    AVISO: el encabezado de coords_EGM2008 dice tide_free, pero se indicó zero_tide; se usa lo indicado por el usuario.
-  Malla coords_EGM2008: zero_tide -> sin transformación.
+  Malla coords_EGM2008: tide_free -> zero_tide (N_ZT = N + corrección; derivada de la Ec. 2, k = 0.3).
+    Malla convertida exportada (mismo formato del original): /projects/sandbox/modeloparametricogeodesia/resultados/coords_EGM2008_zero_tide.txt
+    weighted_mean=6.4597411E+00, minvalue=-4.1853121E+01, maxvalue=3.2802907E+01, signal_wrms=1.2690878E+01 m
 
 [1d] DEPURACIÓN CONTRA LAS MALLAS (R6 error grosero, R7 cobertura)
   R6 con QGeoidCOL2023: mediana(l)=0.188 m, σ_robusta=0.250 m, límite ±1.252 m -> 35 puntos
-  R6 con coords_EGM2008: mediana(l)=1.074 m, σ_robusta=0.496 m, límite ±2.478 m -> 29 puntos
+  R6 con coords_EGM2008: mediana(l)=1.046 m, σ_robusta=0.495 m, límite ±2.474 m -> 29 puntos
 
   RESUMEN DE DEPURACIÓN: 4210 puntos aceptados, 62 rechazados
     R3 coordenadas duplicadas: 3
@@ -115,7 +116,7 @@ Columnas del archivo de puntos:
 ==============================================================================
 [3] INTERPOLACIÓN DE QGeoidCOL2023 EN 4210 PUNTOS (6 métodos)
     IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
-    tiempo 16.9 s; variogramas ajustados: 644 celdas
+    tiempo 16.4 s; variogramas ajustados: 644 celdas
     Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
     Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
     Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
@@ -138,25 +139,25 @@ Columnas del archivo de puntos:
 ==============================================================================
 [3] INTERPOLACIÓN DE coords_EGM2008 EN 4210 PUNTOS (6 métodos)
     IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
-    tiempo 38.3 s; variogramas ajustados: 1528 celdas
+    tiempo 37.7 s; variogramas ajustados: 1528 celdas
     Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
     Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
     Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
     Bicubica               aplicable en  4210 puntos, max|Σw-1| = 3.6e-15
     IDW                    aplicable en  4210 puntos, max|Σw-1| = 7.8e-16
-    Kriging ordinario      aplicable en  4210 puntos, max|Σw-1| = 8.9e-16
+    Kriging ordinario      aplicable en  4210 puntos, max|Σw-1| = 7.8e-16
 
 [4] MODELO PARAMÉTRICO Ec. (18) sobre l = h_ZT - H_ZT - N_ZT, P = I
     l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)
     Método                              dH              x1              x2   σ0 [m]        R²       R²adj
-    Vecino mas cercano       1.1367±0.0054  -0.0940±0.0027  -0.0262±0.0056   0.3517  0.367430  0.36712880
-    Lineal por triangulos    1.1378±0.0050  -0.0920±0.0025  -0.0272±0.0052   0.3260  0.395543  0.39525518
-    Bilineal                 1.1373±0.0050  -0.0919±0.0025  -0.0270±0.0052   0.3259  0.394728  0.39444042
-    Bicubica                 1.1394±0.0050  -0.0925±0.0025  -0.0272±0.0052   0.3267  0.396457  0.39617041  <-- MEJOR
-    IDW                      1.1332±0.0050  -0.0912±0.0025  -0.0269±0.0052   0.3259  0.391114  0.39082488
-    Kriging ordinario        1.1386±0.0050  -0.0921±0.0025  -0.0265±0.0052   0.3267  0.393805  0.39351689
+    Vecino mas cercano       1.1084±0.0054  -0.0936±0.0027  -0.0263±0.0056   0.3517  0.365835  0.36553362
+    Lineal por triangulos    1.1095±0.0050  -0.0916±0.0025  -0.0273±0.0052   0.3259  0.393885  0.39359712
+    Bilineal                 1.1090±0.0050  -0.0915±0.0025  -0.0271±0.0052   0.3259  0.393069  0.39278034
+    Bicubica                 1.1111±0.0050  -0.0921±0.0025  -0.0273±0.0052   0.3266  0.394805  0.39451701  <-- MEJOR
+    IDW                      1.1049±0.0050  -0.0908±0.0025  -0.0270±0.0052   0.3259  0.389448  0.38915801
+    Kriging ordinario        1.1104±0.0050  -0.0917±0.0025  -0.0266±0.0052   0.3267  0.392141  0.39185164
 
-    MEJOR MÉTODO para coords_EGM2008: Bicubica (R²adj = 0.39617041, σ0 = 0.3267 m)
+    MEJOR MÉTODO para coords_EGM2008: Bicubica (R²adj = 0.39451701, σ0 = 0.3266 m)
     (Con el criterio de menor σ0 el mejor sería IDW.)
 
 ==============================================================================

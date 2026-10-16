@@ -269,6 +269,7 @@ def cargar_malla(ruta, orden=None):
     vals = [z for fila in Z for z in fila if z is not None]
 
     m = Malla(nombre, lat, lon, Z, normalizar_sistema(cabecera.get('tide_system')))
+    m.ruta, m.orden, m.es_icgem = ruta, orden, es_icgem
     log(f'  Malla {nombre} ({"ICGEM" if es_icgem else "lat lon N"}; columnas {orden})')
     log(f'    nodos válidos {len(datos)}, no numéricos {n_no_num}, no finitos {n_no_fin}, '
         f'gapvalue {n_gap}, fuera de rango {len(fuera)}')
@@ -296,6 +297,76 @@ def aplicar_marea_malla(m):
                 fila[j] += c
     log(f'  Malla {m.nombre}: {m.sistema} -> zero_tide '
         f'(N_ZT = N + corrección; derivada de la Ec. 2, k = {K_LOVE}).')
+
+
+def _reemplazar_ultimo_campo(linea, valor):
+    """Sustituye el último número de la línea conservando ancho y decimales."""
+    fin = len(linea.rstrip())
+    ini = fin
+    while ini > 0 and not linea[ini - 1].isspace():
+        ini -= 1
+    tok = linea[ini:fin]
+    dec = len(tok.split('.')[1]) if '.' in tok and 'e' not in tok.lower() else 12
+    ancho = fin - (len(linea[:ini].rstrip()))     # espacios previos + número
+    return linea[:len(linea[:ini].rstrip())] + f'{valor:.{dec}f}'.rjust(ancho) + linea[fin:]
+
+
+def exportar_malla_zero_tide(m, carpeta):
+    """Escribe la malla transformada a zero tide con el MISMO formato y orden del
+    archivo original (para compararla con una descarga zero tide de ICGEM).
+    En archivos ICGEM se actualizan tide_system, weighted_mean, maxvalue,
+    minvalue y signal_wrms (media y desviación ponderadas por cos φ)."""
+    with open(m.ruta, encoding='utf-8', errors='replace') as f:
+        lineas = f.read().splitlines()
+    inicio = 0
+    if m.es_icgem:
+        inicio = next(k for k, l in enumerate(lineas) if l.strip().startswith('end_of_head')) + 1
+    gap = None
+    for l in lineas[:inicio]:
+        p = l.split()
+        if len(p) >= 2 and p[0].lower() == 'gapvalue':
+            gap = float(p[1])
+    datos, sw, s1, s2, zmin, zmax = [], 0.0, 0.0, 0.0, float('inf'), float('-inf')
+    for l in lineas[inicio:]:
+        p = l.replace(',', ' ').split()
+        try:
+            v = [float(x) for x in p]
+        except ValueError:
+            v = []
+        if len(v) != 3 or (gap is not None and abs(v[2] - gap) < 1e-9):
+            datos.append(l)
+            continue
+        lat = v[1] if m.orden == 'lon,lat' else v[0]
+        z = v[2] + correccion_N(lat, m.sistema)
+        datos.append(_reemplazar_ultimo_campo(l, z))
+        w = math.cos(math.radians(lat))
+        sw += w; s1 += w * z; s2 += w * z * z
+        zmin, zmax = min(zmin, z), max(zmax, z)
+    media = s1 / sw
+    stats = {'tide_system': 'zero_tide', 'weighted_mean': f'{media:.7E}',
+             'maxvalue': f'{zmax:.7E}', 'minvalue': f'{zmin:.7E}',
+             'signal_wrms': f'{math.sqrt(max(s2 / sw - media * media, 0.0)):.7E}'}
+    cab = []
+    for l in lineas[:inicio]:
+        p = l.split()
+        if len(p) >= 2 and p[0].lower() in stats:
+            k = l.index(p[1], l.index(p[0]) + len(p[0]))
+            nuevo = stats[p[0].lower()]
+            l = l[:k] + nuevo + l[k + len(p[1]):]
+        cab.append(l)
+    if m.es_icgem:
+        k = next(i for i, l in enumerate(cab) if l.strip().lower().startswith('tide_system'))
+        formula = (f'N_ZT = N_TF + {K_LOVE}*(-0.198*(1.5*sin^2(lat)-0.5))' if m.sistema == 'tide_free'
+                   else 'N_ZT = N_MT + 0.198*(1.5*sin^2(lat)-0.5)')
+        cab.insert(k + 1, f'{"comment":>20}     convertido de {m.sistema} a zero_tide: {formula}')
+    ruta = os.path.join(carpeta, f'{m.nombre}_zero_tide.txt')
+    with open(ruta, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(cab + datos) + '\n')
+    log(f'    Malla convertida exportada (mismo formato del original): {ruta}')
+    if m.es_icgem:
+        log(f'    weighted_mean={stats["weighted_mean"]}, minvalue={stats["minvalue"]}, '
+            f'maxvalue={stats["maxvalue"]}, signal_wrms={stats["signal_wrms"]} m')
+    return ruta
 
 
 # ---------------------------------------------------------------------------
@@ -957,6 +1028,8 @@ def main():
                 log(f'    AVISO: el encabezado de {m.nombre} dice {m.sistema_cabecera}, pero se '
                     f'indicó {m.sistema}; se usa lo indicado por el usuario.')
             aplicar_marea_malla(m)
+            if m.sistema != 'zero_tide':
+                exportar_malla_zero_tide(m, args.salida)
             m.preparar_proyeccion()
             mallas.append(m)
         log('\n[1d] DEPURACIÓN CONTRA LAS MALLAS (R6 error grosero, R7 cobertura)')

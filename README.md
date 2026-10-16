@@ -34,4 +34,10 @@ python modelo_parametrico_zero_tide.py --no-interactivo --marea-h zt --marea-H z
 python modelo_parametrico_zero_tide.py --help     # resto de opciones
 ```
 
+Si una malla no está en zero tide, se exporta convertida a `resultados/<malla>_zero_tide.txt`, con el mismo formato y el mismo orden del original. Por ejemplo, `coords_EGM2008_zero_tide.txt`. Para compararla nodo a nodo con una malla descargada en zero tide:
+
+```bash
+python comparar_mallas.py resultados/coords_EGM2008_zero_tide.txt EGM2008_ICGEM_zero_tide.gdf --csv diferencias.csv
+```
+
 Por defecto usa `coords_QGEOID2023.txt` como puntos, y `QGeoidCOL2023.txt` y `coords_EGM2008.txt` como mallas de N. Los resultados quedan en `resultados/`.

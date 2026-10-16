@@ -9,6 +9,19 @@ El archivo "QGeoidCOL2023_3.txt" contiene una matriz de datos espaciales estruct
 "coords_QGEOID2023_3.txt". El conjunto de datos contiene 2318 registros estructurados en seis columnas separadas por punto y coma (;), correspondientes a una red de control geodésico y nivelación en Colombia.Estructura de los datos:FID: Identificador numérico secuencial del punto (0 a 2317).Altura_m_s: Altura física (ortométrica o normal) sobre el nivel medio del mar, en metros.Bloque_Aju: Agrupación o bloque de ajuste de la red (Circuito 1 y 2, Circuito 3 y 4, Circuito 5 y 6, Tramo 1).Latitud y Longitud: Coordenadas espaciales que trazan un recorrido longitudinal desde el suroccidente (aprox. 3.4°, -77.0°) hacia la región norte/Caribe (aprox. 11.5°, -72.4°).Alt_Elipso: Altura referida al elipsoide geodésico ($h$), en metros.
 
 
+## Interfaz gráfica `interfaz_modelo_parametrico.py`
+
+```bash
+python interfaz_modelo_parametrico.py
+```
+
+Solo necesita Python; usa `tkinter`, que viene incluido. Debe estar en la misma carpeta que `modelo_parametrico_zero_tide.py`, que es el que hace los cálculos, así que da los mismos resultados que la línea de comandos. Tiene una pestaña por paso: guía y teoría, puntos, mallas, calcular, resultados (R²_adj y mejor método) y kriging. En esta última se puede ver el semivariograma o el covariograma de cualquier punto.
+
+Fuentes:
+- Paper: Guimarães et al. (2025), *Earth, Planets and Space* 77:98, https://doi.org/10.1186/s40623-025-02226-5
+- EGM2008: [ICGEM (GFZ)](https://icgem.gfz.de/calc_res/d533101e8204f4397361b8d33267c6ed173ceea602f93b06f39678a51579bc4c)
+- QGeoidCOL2023 y coords_QGEOID2023: [IGAC – Red Geodésica](https://redgeodesica.igac.gov.co/)
+
 ## Script `modelo_parametrico_zero_tide.py`
 
 Solo usa la librería estándar de Python (3.8 o superior). Hace lo siguiente:

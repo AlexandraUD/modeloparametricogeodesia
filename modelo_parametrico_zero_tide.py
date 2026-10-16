@@ -64,11 +64,28 @@ CLAVE_METODO = {'Vecino mas cercano': 'vecino', 'Lineal por triangulos': 'triang
                 'Bilineal': 'bilineal', 'Bicubica': 'bicubica', 'IDW': 'idw',
                 'Kriging ordinario': 'kriging'}
 BITACORA = []
+LOG_HOOK = None       # la interfaz gráfica asigna aquí una función para recibir la bitácora
+
+FUENTES = (
+    'Paper: Guimarães, G. N., Matos, A. C. O. C., Blitzkow, D. & Almeida, F. G. V. (2025). '
+    'High-resolution regional gravity field modeling to connect the local vertical systems '
+    'in South America to the IHRF. Earth, Planets and Space 77:98. '
+    'https://doi.org/10.1186/s40623-025-02226-5',
+    'Malla EGM2008 (coords_EGM2008.txt): ICGEM, GFZ Potsdam - '
+    'https://icgem.gfz.de/calc_res/d533101e8204f4397361b8d33267c6ed173ceea602f93b06f39678a51579bc4c',
+    'Malla QGeoidCOL2023 y puntos coords_QGEOID2023: IGAC, Red Geodésica Nacional - '
+    'https://redgeodesica.igac.gov.co/',
+)
 
 
 def log(texto=''):
-    print(texto)
+    try:
+        print(texto)
+    except UnicodeEncodeError:       # consola sin UTF-8: se imprime sin los caracteres especiales
+        print(texto.encode('ascii', 'replace').decode('ascii'))
     BITACORA.append(texto)
+    if LOG_HOOK is not None:
+        LOG_HOOK(texto)
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +205,21 @@ def _valores_unicos(v, tol):
         if x - u[-1] > tol:
             u.append(x)
     return u
+
+
+def leer_cabecera_malla(ruta):
+    """Lectura rápida del encabezado: (es_icgem, tide_system declarado o None)."""
+    ts = None
+    with open(ruta, encoding='utf-8', errors='replace') as f:
+        for k, l in enumerate(f):
+            p = l.split()
+            if len(p) >= 2 and p[0].lower() == 'tide_system':
+                ts = normalizar_sistema(p[1])
+            if l.strip().startswith('end_of_head'):
+                return True, ts
+            if k > 200:
+                break
+    return False, None
 
 
 def cargar_malla(ruta, orden=None):
@@ -587,26 +619,31 @@ def ajustar_variograma(xy, z, n_lags=12, tipos=('sph', 'exp', 'gau', 'cir')):
     n = len(z)
     if n < 6:
         raise NoAplicable(f'solo {n} nodos en la ventana para el variograma')
-    dist, semiv = [], []
+    zm = sum(z) / n
+    dist, semiv, cov = [], [], []
     for a in range(n):
         xa, ya = xy[a]
         za = z[a]
         for b in range(a + 1, n):
             dist.append(math.hypot(xa - xy[b][0], ya - xy[b][1]))
             semiv.append(0.5 * (za - z[b]) ** 2)
+            cov.append((za - zm) * (z[b] - zm))
     lag_max = max(dist) / 2
     bordes = [lag_max * k / n_lags for k in range(n_lags + 1)]
     sh = [0.0] * n_lags
     sg = [0.0] * n_lags
+    sc = [0.0] * n_lags
     npar = [0] * n_lags
-    for d, s in zip(dist, semiv):
+    for d, s, c in zip(dist, semiv, cov):
         k = bisect.bisect_left(bordes, d) - 1      # bordes[k] < d <= bordes[k+1]
         if 0 <= k < n_lags:
             sh[k] += d
             sg[k] += s
+            sc[k] += c
             npar[k] += 1
     h = [sh[k] / npar[k] for k in range(n_lags) if npar[k]]
     g = [sg[k] / npar[k] for k in range(n_lags) if npar[k]]
+    cexp = [sc[k] / npar[k] for k in range(n_lags) if npar[k]]
     w = [npar[k] for k in range(n_lags) if npar[k]]
     if len(h) < 3:
         raise NoAplicable('menos de 3 rezagos con pares')
@@ -615,18 +652,32 @@ def ajustar_variograma(xy, z, n_lags=12, tipos=('sph', 'exp', 'gau', 'cir')):
     def rango(p3):
         return lag_max / (1 + math.exp(-max(min(p3, 700), -700))) + EPS
 
-    mejor = None
+    mejor, todos = None, []
     for tipo in tipos:
         def obj(p, tipo=tipo):
             nug, sil, rg = p[0] ** 2, p[1] ** 2, rango(p[2])
             return sum(wk * (gk - modelo_variograma(hk, nug, sil, rg, tipo)) ** 2
                        for hk, gk, wk in zip(h, g, w))
         p = fminsearch(obj, ini)
-        ssr = obj(p)
-        if mejor is None or ssr < mejor['SSRw']:
-            mejor = {'tipo': tipo, 'nugget': p[0] ** 2, 'sill': p[1] ** 2,
-                     'rango': rango(p[2]), 'SSRw': ssr}
+        ajuste = {'tipo': tipo, 'nugget': p[0] ** 2, 'sill': p[1] ** 2,
+                  'rango': rango(p[2]), 'SSRw': obj(p)}
+        todos.append(ajuste)
+        if mejor is None or ajuste['SSRw'] < mejor['SSRw']:
+            mejor = ajuste
+    # Datos para graficar: semivariograma y covariograma experimentales y
+    # los 4 modelos ajustados (la interfaz gráfica los dibuja).
+    mejor = dict(mejor, todos=todos, hExp=h, gExp=g, cExp=cexp, nPares=w,
+                 lagMax=lag_max, nNodos=n, varianza=sum((x - zm) ** 2 for x in z) / n)
     return mejor
+
+
+NOMBRE_VARIOGRAMA = {'sph': 'esférico', 'exp': 'exponencial', 'gau': 'gaussiano',
+                     'cir': 'circular'}
+
+
+def modelo_covariograma(h, nugget, sill, rango, tipo):
+    """Covariograma del modelo acotado: C(h) = (C0 + C) - γ(h); C(0) = C0 + C."""
+    return nugget + sill - modelo_variograma(h, nugget, sill, rango, tipo)
 
 
 def resolver(A, b):
@@ -674,7 +725,8 @@ def pesos_kriging(m, lat0, lon0, xy0, n_krig=16, semiancho=6, n_lags=12, cache=N
     sol, piv = resolver(A, g0 + [1.0])
     lam, mu = sol[:k], sol[k]
     var = sum(l * g for l, g in zip(lam, g0)) + mu
-    info = {'sigma': math.sqrt(max(var, 0.0)), 'modelo': mod['tipo'], 'mal_cond': piv < 1e-14}
+    info = {'sigma': math.sqrt(max(var, 0.0)), 'modelo': mod['tipo'], 'mal_cond': piv < 1e-14,
+            'celda': clave, 'n_vecinos': k}
     return [cand[o] for o in orden], lam, info
 
 
@@ -947,13 +999,258 @@ def fmt(x, n=4):
     return '' if x is None else f'{x:.{n}f}'
 
 
+class Cancelado(Exception):
+    """El usuario detuvo el cálculo desde la interfaz."""
+
+
 # ---------------------------------------------------------------------------
-# Programa principal
+# Pasos 3 y 4 para una malla: interpolación (6 métodos) + modelo paramétrico
+# ---------------------------------------------------------------------------
+def procesar_malla(m, puntos, par, salida, modelo='18', progreso=None, cancelar=None):
+    """Interpola N con los 6 métodos en los puntos, ajusta el modelo y escribe
+    interpolacion_<malla>.csv y modelo_parametrico_<malla>.csv.
+    progreso(fracción, texto) y cancelar() son opcionales (interfaz gráfica)."""
+    log('\n' + '=' * 78)
+    log(f'[3] INTERPOLACIÓN DE {m.nombre} EN {len(puntos)} PUNTOS (6 métodos)')
+    log(f'    IDW p={par.idw_p}, k={par.idw_k}; kriging n={par.krig_n}, '
+        f'semiancho={par.krig_ventana} nodos, variograma MCP (sph/exp/gau/cir)')
+    cache = {}
+    res = {met: {} for met in METODOS}
+    no_apl = {met: {} for met in METODOS}
+    sum_w = {met: 0.0 for met in METODOS}
+    sig_k = {}
+    t1 = time.time()
+    for n_p, p in enumerate(puntos, 1):
+        xy0 = proyectar_origen_nacional(p['lat'], p['lon'])
+        for met in METODOS:
+            try:
+                z, sw, info = interpolar(m, met, p['lat'], p['lon'], xy0, par, cache)
+                res[met][p['id']] = z
+                sum_w[met] = max(sum_w[met], abs(sw - 1))
+                if info:
+                    sig_k[p['id']] = info
+            except NoAplicable as e:
+                no_apl[met][p['id']] = str(e)
+        if n_p % 100 == 0 or n_p == len(puntos):
+            if cancelar is not None and cancelar():
+                raise Cancelado()
+            if progreso is not None:
+                progreso(n_p / len(puntos), f'{m.nombre}: {n_p}/{len(puntos)} puntos')
+            if n_p % 500 == 0:
+                print(f'    ... {n_p}/{len(puntos)} puntos ({time.time() - t1:.0f} s)', flush=True)
+    log(f'    tiempo {time.time() - t1:.1f} s; variogramas ajustados: {len(cache)} celdas')
+    for met in METODOS:
+        log(f'    {met:<22} aplicable en {len(res[met]):>5} puntos, '
+            f'max|Σw-1| = {sum_w[met]:.1e}' +
+            (f'; no aplicable: {len(no_apl[met])}' if no_apl[met] else ''))
+    mal_cond = sum(1 for i in sig_k.values() if i.get('mal_cond'))
+    if mal_cond:
+        log(f'    ADVERTENCIA: {mal_cond} sistemas de kriging mal condicionados.')
+
+    comunes = [p for p in puntos if all(p['id'] in res[met] for met in METODOS)]
+    if len(comunes) < len(puntos):
+        log(f'    Se usan los {len(comunes)} puntos donde los 6 métodos son aplicables '
+            f'(mismo conjunto para comparar).')
+    if len(comunes) < 10:
+        raise ValueError(f'Solo {len(comunes)} puntos comunes con la malla {m.nombre}: '
+                         f'no se puede ajustar el modelo.')
+
+    log(f'\n[4] MODELO PARAMÉTRICO Ec. ({modelo}) sobre l = h_ZT - H_ZT - N_ZT, P = I')
+    if modelo == '18':
+        log('    l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)')
+    else:
+        log('    l = x0 + x1 cosφcosλ + x2 cosφsinλ + x3 sinφ')
+    ajustes = {}
+    for met in METODOS:
+        l = [p['h_zt'] - p['H_zt'] - res[met][p['id']] for p in comunes]
+        ajustes[met] = ajustar_modelo(comunes, l, modelo)
+    mejor = max(METODOS, key=lambda mt: ajustes[mt]['R2adj'])
+    menor_s0 = min(METODOS, key=lambda mt: ajustes[mt]['sigma0'])
+
+    nombres_x = ['dH', 'x1', 'x2'] if modelo == '18' else ['x0', 'x1', 'x2', 'x3']
+    log(f'    {"Método":<22}' + ''.join(f'{c:>16}' for c in nombres_x) +
+        f'{"σ0 [m]":>9}{"R²":>10}{"R²adj":>12}')
+    filas_res = []
+    for met in METODOS:
+        a = ajustes[met]
+        log(f'    {met:<22}' + ''.join(f'{x:>9.4f}±{s:<6.4f}' for x, s in zip(a['x'], a['sx'])) +
+            f'{a["sigma0"]:>9.4f}{a["R2"]:>10.6f}{a["R2adj"]:>12.8f}' +
+            ('  <-- MEJOR' if met == mejor else ''))
+        fila = {'malla': m.nombre, 'metodo': met, 'modelo': f'Ec.{modelo}', 'n': a['n'],
+                'parametros': a['u'], 'phi0': fmt(a['phi0'], 6), 'lambda0': fmt(a['lam0'], 6),
+                'media_l': fmt(a['media_l']), 'std_l': fmt(a['std_l']),
+                'sigma0': fmt(a['sigma0']), 'rmse_residuos': fmt(a['rmse']),
+                'R2': fmt(a['R2'], 8), 'R2_ajustado': fmt(a['R2adj'], 8),
+                'mejor': 'SI' if met == mejor else ''}
+        for c, x, s in zip(nombres_x, a['x'], a['sx']):
+            fila[c] = fmt(x, 6)
+            fila['s_' + c] = fmt(s, 6)
+        filas_res.append(fila)
+    empates = [mt for mt in METODOS if abs(ajustes[mt]['R2adj'] - ajustes[mejor]['R2adj']) < 1e-10]
+    if len(empates) > 1:
+        log(f'    Nota: empate en R²adj entre {", ".join(empates)}.')
+    log(f'\n    MEJOR MÉTODO para {m.nombre}: {mejor} '
+        f'(R²adj = {ajustes[mejor]["R2adj"]:.8f}, σ0 = {ajustes[mejor]["sigma0"]:.4f} m)')
+    if menor_s0 != mejor:
+        log(f'    (Con el criterio de menor σ0 el mejor sería {menor_s0}.)')
+
+    campos_res = ['malla', 'metodo', 'modelo', 'n', 'parametros'] + \
+        [c for x in nombres_x for c in (x, 's_' + x)] + \
+        ['phi0', 'lambda0', 'media_l', 'std_l', 'sigma0', 'rmse_residuos', 'R2', 'R2_ajustado', 'mejor']
+    escribir_csv(os.path.join(salida, f'modelo_parametrico_{m.nombre}.csv'), campos_res, filas_res)
+
+    filas_int = []
+    idx_com = {p['id']: k for k, p in enumerate(comunes)}
+    for p in puntos:
+        r = {'id': p['id'], 'lat': fmt(p['lat'], 9), 'lon': fmt(p['lon'], 9),
+             'h_ZT': fmt(p['h_zt']), 'H_ZT': fmt(p['H_zt']),
+             'usado_en_modelo': 'SI' if p['id'] in idx_com else 'NO'}
+        for met in METODOS:
+            c = CLAVE_METODO[met]
+            z = res[met].get(p['id'])
+            r['N_' + c] = fmt(z)
+            r['l_' + c] = fmt(p['h_zt'] - p['H_zt'] - z) if z is not None else ''
+            r['v_' + c] = fmt(ajustes[met]['v'][idx_com[p['id']]]) if p['id'] in idx_com else ''
+        r['sigma_kriging'] = fmt(sig_k[p['id']]['sigma']) if p['id'] in sig_k else ''
+        r['variograma_kriging'] = sig_k[p['id']]['modelo'] if p['id'] in sig_k else ''
+        filas_int.append(r)
+    campos_int = ['id', 'lat', 'lon', 'h_ZT', 'H_ZT', 'usado_en_modelo'] + \
+        [f'{pre}_{CLAVE_METODO[met]}' for pre in ('N', 'l', 'v') for met in METODOS] + \
+        ['sigma_kriging', 'variograma_kriging']
+    escribir_csv(os.path.join(salida, f'interpolacion_{m.nombre}.csv'), campos_int, filas_int)
+    return {'malla': m, 'ajustes': ajustes, 'mejor': mejor, 'menor_s0': menor_s0,
+            'nombres_x': nombres_x, 'filas_res': filas_res, 'res': res, 'no_apl': no_apl,
+            'sig_k': sig_k, 'variogramas': cache, 'comunes': comunes}
+
+
+# ---------------------------------------------------------------------------
+# Flujo completo (lo usan la línea de comandos y la interfaz gráfica)
+# ---------------------------------------------------------------------------
+def ejecutar(cfg, progreso=None, cancelar=None):
+    """Ejecuta los pasos 1 a 4 sin preguntar nada.
+
+    cfg: objeto con atributos
+      puntos (ruta), idx (dict id/lat/lon/h/H -> índice de columna o None),
+      sis_h, sis_H, mallas (lista de (ruta, orden o None, sistema)),
+      idw_p, idw_k, krig_n, krig_ventana, umbral_mad, modelo ('18'/'23'), salida.
+    """
+    BITACORA.clear()
+    os.makedirs(cfg.salida, exist_ok=True)
+    t0 = time.time()
+    avisar = progreso or (lambda f, t: None)
+    log('=' * 78)
+    log('MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)')
+    log('=' * 78)
+    for f in FUENTES:
+        log('  ' + f)
+
+    idx = cfg.idx
+    tiene_h, tiene_H = idx.get('h') is not None, idx.get('H') is not None
+    log(f'\n[1] RECEPCIÓN DE PUNTOS: {cfg.puntos}')
+    encabezado, filas, delim = leer_tabla(cfg.puntos)
+    log(f'  {len(filas)} registros; separador {repr(delim) if delim else "espacios"}')
+    for clave in ('id', 'lat', 'lon', 'h', 'H'):
+        log(f'  {clave:>3} -> {encabezado[idx[clave]] if idx.get(clave) is not None else "(no viene)"}')
+    log('\n  Sistema de mareas de los puntos:')
+    if tiene_h:
+        log(f'    h: {cfg.sis_h} -> ' + ('sin transformación' if cfg.sis_h == 'zero_tide' else
+            ('Ec. (3)' if cfg.sis_h == 'tide_free' else 'sin cambio (corteza mean tide = zero tide)')))
+    if tiene_H:
+        log(f'    H: {cfg.sis_H} -> ' + ('sin transformación' if cfg.sis_H == 'zero_tide' else
+            ('Ec. (1)-(2)' if cfg.sis_H == 'mean_tide' else 'Ec. (3) - ΔN_TF→ZT (derivada)')))
+
+    log('\n[1b] DEPURACIÓN DE PUNTOS (R1-R5)')
+    rechazos = []
+    puntos = leer_puntos(filas, idx, rechazos)
+    for p in puntos:
+        p['corr_h'] = correccion_h(p['lat'], cfg.sis_h) if tiene_h else None
+        p['corr_H'] = correccion_H(p['lat'], cfg.sis_H) if tiene_H else None
+        p['h_zt'] = p['h'] + p['corr_h'] if tiene_h else None
+        p['H_zt'] = p['H'] + p['corr_H'] if tiene_H else None
+    log(f'  válidos tras R1-R5: {len(puntos)} de {len(filas)} (rechazados {len(rechazos)})')
+
+    mallas, rutas_malla_zt = [], []
+    if tiene_h and tiene_H and cfg.mallas:
+        log('\n[1c] MALLAS DE N (geoide / cuasigeoide)')
+        for ruta, orden, sistema in cfg.mallas:
+            avisar(0.0, f'Leyendo malla {os.path.basename(ruta)}...')
+            m = cargar_malla(ruta, orden)
+            m.sistema = sistema
+            if m.sistema_cabecera and m.sistema_cabecera != m.sistema:
+                log(f'    AVISO: el encabezado de {m.nombre} dice {m.sistema_cabecera}, pero se '
+                    f'indicó {m.sistema}; se usa lo indicado por el usuario.')
+            aplicar_marea_malla(m)
+            if m.sistema != 'zero_tide':
+                rutas_malla_zt.append(exportar_malla_zero_tide(m, cfg.salida))
+            m.preparar_proyeccion()
+            mallas.append(m)
+        log('\n[1d] DEPURACIÓN CONTRA LAS MALLAS (R6 error grosero, R7 cobertura)')
+        puntos = depurar_contra_mallas(puntos, mallas, cfg.umbral_mad, rechazos)
+
+    conteo = {}
+    for r in rechazos:
+        conteo[r['regla']] = conteo.get(r['regla'], 0) + 1
+    log(f'\n  RESUMEN DE DEPURACIÓN: {len(puntos)} puntos aceptados, {len(rechazos)} rechazados')
+    for regla in sorted(conteo):
+        log(f'    {regla}: {conteo[regla]}')
+    for r in rechazos[:60]:
+        log(f'    - id {r["id"]} (línea {r["linea"]}): {r["regla"]} | {r["detalle"]}')
+    if len(rechazos) > 60:
+        log(f'    ... ({len(rechazos) - 60} más en puntos_rechazados.csv)')
+    escribir_csv(os.path.join(cfg.salida, 'puntos_rechazados.csv'),
+                 ['id', 'linea', 'lat', 'lon', 'h', 'H', 'regla', 'detalle'], rechazos)
+
+    # ---------------- 2. Exportación zero tide ----------------
+    ruta_zt = os.path.join(cfg.salida, 'coordenadas_zero_tide.csv')
+    filas_zt = [{'id': p['id'], 'lat': fmt(p['lat'], 9), 'lon': fmt(p['lon'], 9),
+                 'h_original': fmt(p['h']), 'sistema_h': cfg.sis_h, 'corr_h': fmt(p['corr_h'], 5),
+                 'h_ZT': fmt(p['h_zt']), 'H_original': fmt(p['H']), 'sistema_H': cfg.sis_H,
+                 'corr_H': fmt(p['corr_H'], 5), 'H_ZT': fmt(p['H_zt'])} for p in puntos]
+    escribir_csv(ruta_zt, ['id', 'lat', 'lon', 'h_original', 'sistema_h', 'corr_h', 'h_ZT',
+                           'H_original', 'sistema_H', 'corr_H', 'H_ZT'], filas_zt)
+    log(f'\n[2] EXPORTACIÓN: {len(puntos)} puntos en zero tide -> {ruta_zt}')
+
+    salida = {'puntos': puntos, 'rechazos': rechazos, 'conteo_rechazos': conteo,
+              'resultados': [], 'ruta_zt': ruta_zt, 'rutas_malla_zt': rutas_malla_zt,
+              'carpeta': cfg.salida, 'aviso': None}
+    if not (tiene_h and tiene_H):
+        salida['aviso'] = ('El modelo paramétrico (l = h - H - N) necesita h y H; '
+                           'solo se exportó zero tide.')
+    elif not mallas:
+        salida['aviso'] = 'No se indicó ninguna malla de N; no se puede aplicar el modelo paramétrico.'
+    if salida['aviso']:
+        log('\n' + salida['aviso'])
+    else:
+        # ---------------- 3 y 4. Interpolación + modelo ----------------
+        resumen_global = []
+        for k, m in enumerate(mallas):
+            def prog(f, t, k=k):
+                avisar((k + f) / len(mallas), t)
+            r = procesar_malla(m, puntos, cfg, cfg.salida, cfg.modelo, prog, cancelar)
+            salida['resultados'].append(r)
+            resumen_global += r['filas_res']
+        campos_g = ['malla', 'metodo', 'modelo', 'n', 'parametros'] + \
+            [c for x in (['dH', 'x1', 'x2'] if cfg.modelo == '18' else ['x0', 'x1', 'x2', 'x3'])
+             for c in (x, 's_' + x)] + ['sigma0', 'rmse_residuos', 'R2', 'R2_ajustado', 'mejor']
+        escribir_csv(os.path.join(cfg.salida, 'resumen_modelos.csv'), campos_g, resumen_global)
+    log('\n' + '=' * 78)
+    log(f'Archivos en {cfg.salida}: coordenadas_zero_tide.csv, puntos_rechazados.csv, '
+        f'interpolacion_<malla>.csv, modelo_parametrico_<malla>.csv, resumen_modelos.csv, reporte.txt')
+    log(f'Tiempo total: {time.time() - t0:.1f} s')
+    with open(os.path.join(cfg.salida, 'reporte.txt'), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(BITACORA) + '\n')
+    avisar(1.0, 'Terminado')
+    return salida
+
+
+# ---------------------------------------------------------------------------
+# Programa principal (línea de comandos)
 # ---------------------------------------------------------------------------
 def main():
     aqui = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(
-        description='Zero tide + 6 interpolaciones + modelo paramétrico (Ec. 18) con R² ajustado.',
+        description='Zero tide + 6 interpolaciones + modelo paramétrico (Ec. 18) con R² ajustado. '
+                    'Para la interfaz gráfica ejecute interfaz_modelo_parametrico.py',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     ap.add_argument('--puntos', default=os.path.join(aqui, 'coords_QGEOID2023.txt'),
                     help='archivo de puntos GNSS/nivelación')
@@ -982,205 +1279,26 @@ def main():
     if args.malla is None:
         args.malla = [os.path.join(aqui, f) for f in ('QGeoidCOL2023.txt', 'coords_EGM2008.txt')
                       if os.path.isfile(os.path.join(aqui, f))]
-    os.makedirs(args.salida, exist_ok=True)
-    t0 = time.time()
 
-    log('=' * 78)
-    log('MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)')
-    log('=' * 78)
-
-    # ---------------- 1. Recepción, mareas y depuración ----------------
-    log(f'\n[1] RECEPCIÓN DE PUNTOS: {args.puntos}')
-    encabezado, filas, delim = leer_tabla(args.puntos)
-    log(f'  {len(filas)} registros; separador {repr(delim) if delim else "espacios"}')
-    idx = mapear_columnas(args, encabezado)
-    tiene_h, tiene_H = idx['h'] is not None, idx['H'] is not None
-
-    log('\n  Sistema de mareas de los puntos:')
-    sis_h = preguntar_sistema(args, 'la altura elipsoidal h', args.marea_h) if tiene_h else None
-    sis_H = preguntar_sistema(args, 'la altura sobre el nivel del mar H', args.marea_H) if tiene_H else None
-    if tiene_h:
-        log(f'    h: {sis_h} -> ' + ('sin transformación' if sis_h == 'zero_tide' else
-            ('Ec. (3)' if sis_h == 'tide_free' else 'sin cambio (corteza mean tide = zero tide)')))
-    if tiene_H:
-        log(f'    H: {sis_H} -> ' + ('sin transformación' if sis_H == 'zero_tide' else
-            ('Ec. (1)-(2)' if sis_H == 'mean_tide' else 'Ec. (3) - ΔN_TF→ZT (derivada)')))
-
-    log('\n[1b] DEPURACIÓN DE PUNTOS (R1-R5)')
-    rechazos = []
-    puntos = leer_puntos(filas, idx, rechazos)
-    for p in puntos:
-        p['corr_h'] = correccion_h(p['lat'], sis_h) if tiene_h else None
-        p['corr_H'] = correccion_H(p['lat'], sis_H) if tiene_H else None
-        p['h_zt'] = p['h'] + p['corr_h'] if tiene_h else None
-        p['H_zt'] = p['H'] + p['corr_H'] if tiene_H else None
-    log(f'  válidos tras R1-R5: {len(puntos)} de {len(filas)} (rechazados {len(rechazos)})')
-
-    mallas = []
-    if tiene_h and tiene_H and args.malla:
-        log('\n[1c] MALLAS DE N (geoide / cuasigeoide)')
+    # Preguntas (columnas y sistemas de mareas); luego el cálculo no pregunta nada.
+    print(f'Archivo de puntos: {args.puntos}')
+    encabezado, _, _ = leer_tabla(args.puntos)
+    args.idx = mapear_columnas(args, encabezado)
+    tiene_h, tiene_H = args.idx['h'] is not None, args.idx['H'] is not None
+    args.sis_h = preguntar_sistema(args, 'la altura elipsoidal h', args.marea_h) if tiene_h else None
+    args.sis_H = preguntar_sistema(args, 'la altura sobre el nivel del mar H', args.marea_H) if tiene_H else None
+    args.mallas = []
+    if tiene_h and tiene_H:
         for k, ruta in enumerate(args.malla):
+            if not os.path.isfile(ruta):
+                sys.exit(f'ERROR: no se encontró la malla "{ruta}".')
             orden = args.orden_malla[k] if args.orden_malla and k < len(args.orden_malla) else None
-            m = cargar_malla(ruta, orden)
             dado = args.marea_malla[k] if args.marea_malla and k < len(args.marea_malla) else None
-            m.sistema = preguntar_sistema(args, f'la malla {m.nombre}', dado, m.sistema_cabecera)
-            if m.sistema_cabecera and m.sistema_cabecera != m.sistema:
-                log(f'    AVISO: el encabezado de {m.nombre} dice {m.sistema_cabecera}, pero se '
-                    f'indicó {m.sistema}; se usa lo indicado por el usuario.')
-            aplicar_marea_malla(m)
-            if m.sistema != 'zero_tide':
-                exportar_malla_zero_tide(m, args.salida)
-            m.preparar_proyeccion()
-            mallas.append(m)
-        log('\n[1d] DEPURACIÓN CONTRA LAS MALLAS (R6 error grosero, R7 cobertura)')
-        puntos = depurar_contra_mallas(puntos, mallas, args.umbral_mad, rechazos)
-
-    conteo = {}
-    for r in rechazos:
-        conteo[r['regla']] = conteo.get(r['regla'], 0) + 1
-    log(f'\n  RESUMEN DE DEPURACIÓN: {len(puntos)} puntos aceptados, {len(rechazos)} rechazados')
-    for regla in sorted(conteo):
-        log(f'    {regla}: {conteo[regla]}')
-    for r in rechazos[:60]:
-        log(f'    - id {r["id"]} (línea {r["linea"]}): {r["regla"]} | {r["detalle"]}')
-    if len(rechazos) > 60:
-        log(f'    ... ({len(rechazos) - 60} más en puntos_rechazados.csv)')
-    escribir_csv(os.path.join(args.salida, 'puntos_rechazados.csv'),
-                 ['id', 'linea', 'lat', 'lon', 'h', 'H', 'regla', 'detalle'], rechazos)
-
-    # ---------------- 2. Exportación zero tide ----------------
-    ruta_zt = os.path.join(args.salida, 'coordenadas_zero_tide.csv')
-    filas_zt = [{'id': p['id'], 'lat': fmt(p['lat'], 9), 'lon': fmt(p['lon'], 9),
-                 'h_original': fmt(p['h']), 'sistema_h': sis_h, 'corr_h': fmt(p['corr_h'], 5),
-                 'h_ZT': fmt(p['h_zt']), 'H_original': fmt(p['H']), 'sistema_H': sis_H,
-                 'corr_H': fmt(p['corr_H'], 5), 'H_ZT': fmt(p['H_zt'])} for p in puntos]
-    escribir_csv(ruta_zt, ['id', 'lat', 'lon', 'h_original', 'sistema_h', 'corr_h', 'h_ZT',
-                           'H_original', 'sistema_H', 'corr_H', 'H_ZT'], filas_zt)
-    log(f'\n[2] EXPORTACIÓN: {len(puntos)} puntos en zero tide -> {ruta_zt}')
-
-    if not (tiene_h and tiene_H):
-        log('\nEl modelo paramétrico (l = h - H - N) necesita h y H; solo se exportó zero tide.')
-        return
-    if not mallas:
-        log('\nNo se indicó ninguna malla de N; no se puede aplicar el modelo paramétrico.')
-        return
-
-    # ---------------- 3 y 4. Interpolación + modelo ----------------
-    resumen_global = []
-    for m in mallas:
-        log('\n' + '=' * 78)
-        log(f'[3] INTERPOLACIÓN DE {m.nombre} EN {len(puntos)} PUNTOS (6 métodos)')
-        log(f'    IDW p={args.idw_p}, k={args.idw_k}; kriging n={args.krig_n}, '
-            f'semiancho={args.krig_ventana} nodos, variograma MCP (sph/exp/gau/cir)')
-        cache = {}
-        res = {met: {} for met in METODOS}
-        no_apl = {met: {} for met in METODOS}
-        sum_w = {met: 0.0 for met in METODOS}
-        sig_k = {}
-        t1 = time.time()
-        for n_p, p in enumerate(puntos, 1):
-            xy0 = proyectar_origen_nacional(p['lat'], p['lon'])
-            for met in METODOS:
-                try:
-                    z, sw, info = interpolar(m, met, p['lat'], p['lon'], xy0, args, cache)
-                    res[met][p['id']] = z
-                    sum_w[met] = max(sum_w[met], abs(sw - 1))
-                    if info:
-                        sig_k[p['id']] = info
-                except NoAplicable as e:
-                    no_apl[met][p['id']] = str(e)
-            if n_p % 500 == 0:
-                print(f'    ... {n_p}/{len(puntos)} puntos ({time.time() - t1:.0f} s)', flush=True)
-        log(f'    tiempo {time.time() - t1:.1f} s; variogramas ajustados: {len(cache)} celdas')
-        for met in METODOS:
-            log(f'    {met:<22} aplicable en {len(res[met]):>5} puntos, '
-                f'max|Σw-1| = {sum_w[met]:.1e}' +
-                (f'; no aplicable: {len(no_apl[met])}' if no_apl[met] else ''))
-        mal_cond = sum(1 for i in sig_k.values() if i.get('mal_cond'))
-        if mal_cond:
-            log(f'    ADVERTENCIA: {mal_cond} sistemas de kriging mal condicionados.')
-
-        comunes = [p for p in puntos if all(p['id'] in res[met] for met in METODOS)]
-        if len(comunes) < len(puntos):
-            log(f'    Se usan los {len(comunes)} puntos donde los 6 métodos son aplicables '
-                f'(mismo conjunto para comparar).')
-
-        log(f'\n[4] MODELO PARAMÉTRICO Ec. ({args.modelo}) sobre l = h_ZT - H_ZT - N_ZT, P = I')
-        if args.modelo == '18':
-            log('    l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)')
-        else:
-            log('    l = x0 + x1 cosφcosλ + x2 cosφsinλ + x3 sinφ')
-        ajustes = {}
-        for met in METODOS:
-            l = [p['h_zt'] - p['H_zt'] - res[met][p['id']] for p in comunes]
-            ajustes[met] = ajustar_modelo(comunes, l, args.modelo)
-        mejor = max(METODOS, key=lambda mt: ajustes[mt]['R2adj'])
-
-        nombres_x = ['dH', 'x1', 'x2'] if args.modelo == '18' else ['x0', 'x1', 'x2', 'x3']
-        cab = f'    {"Método":<22}' + ''.join(f'{c:>16}' for c in nombres_x) + \
-              f'{"σ0 [m]":>9}{"R²":>10}{"R²adj":>12}'
-        log(cab)
-        filas_res = []
-        for met in METODOS:
-            a = ajustes[met]
-            log(f'    {met:<22}' + ''.join(f'{x:>9.4f}±{s:<6.4f}' for x, s in zip(a['x'], a['sx'])) +
-                f'{a["sigma0"]:>9.4f}{a["R2"]:>10.6f}{a["R2adj"]:>12.8f}' +
-                ('  <-- MEJOR' if met == mejor else ''))
-            fila = {'malla': m.nombre, 'metodo': met, 'modelo': f'Ec.{args.modelo}', 'n': a['n'],
-                    'parametros': a['u'], 'phi0': fmt(a['phi0'], 6), 'lambda0': fmt(a['lam0'], 6),
-                    'media_l': fmt(a['media_l']), 'std_l': fmt(a['std_l']),
-                    'sigma0': fmt(a['sigma0']), 'rmse_residuos': fmt(a['rmse']),
-                    'R2': fmt(a['R2'], 8), 'R2_ajustado': fmt(a['R2adj'], 8),
-                    'mejor': 'SI' if met == mejor else ''}
-            for c, x, s in zip(nombres_x, a['x'], a['sx']):
-                fila[c] = fmt(x, 6)
-                fila['s_' + c] = fmt(s, 6)
-            filas_res.append(fila)
-            resumen_global.append(fila)
-        empates = [mt for mt in METODOS if abs(ajustes[mt]['R2adj'] - ajustes[mejor]['R2adj']) < 1e-10]
-        if len(empates) > 1:
-            log(f'    Nota: empate en R²adj entre {", ".join(empates)}.')
-        log(f'\n    MEJOR MÉTODO para {m.nombre}: {mejor} '
-            f'(R²adj = {ajustes[mejor]["R2adj"]:.8f}, σ0 = {ajustes[mejor]["sigma0"]:.4f} m)')
-        menor_s0 = min(METODOS, key=lambda mt: ajustes[mt]['sigma0'])
-        if menor_s0 != mejor:
-            log(f'    (Con el criterio de menor σ0 el mejor sería {menor_s0}.)')
-
-        campos_res = ['malla', 'metodo', 'modelo', 'n', 'parametros'] + \
-            [c for x in nombres_x for c in (x, 's_' + x)] + \
-            ['phi0', 'lambda0', 'media_l', 'std_l', 'sigma0', 'rmse_residuos', 'R2', 'R2_ajustado', 'mejor']
-        escribir_csv(os.path.join(args.salida, f'modelo_parametrico_{m.nombre}.csv'), campos_res, filas_res)
-
-        filas_int = []
-        idx_com = {p['id']: k for k, p in enumerate(comunes)}
-        for p in puntos:
-            r = {'id': p['id'], 'lat': fmt(p['lat'], 9), 'lon': fmt(p['lon'], 9),
-                 'h_ZT': fmt(p['h_zt']), 'H_ZT': fmt(p['H_zt']),
-                 'usado_en_modelo': 'SI' if p['id'] in idx_com else 'NO'}
-            for met in METODOS:
-                c = CLAVE_METODO[met]
-                z = res[met].get(p['id'])
-                r['N_' + c] = fmt(z)
-                r['l_' + c] = fmt(p['h_zt'] - p['H_zt'] - z) if z is not None else ''
-                r['v_' + c] = fmt(ajustes[met]['v'][idx_com[p['id']]]) if p['id'] in idx_com else ''
-            r['sigma_kriging'] = fmt(sig_k[p['id']]['sigma']) if p['id'] in sig_k else ''
-            r['variograma_kriging'] = sig_k[p['id']]['modelo'] if p['id'] in sig_k else ''
-            filas_int.append(r)
-        campos_int = ['id', 'lat', 'lon', 'h_ZT', 'H_ZT', 'usado_en_modelo'] + \
-            [f'{pre}_{CLAVE_METODO[met]}' for pre in ('N', 'l', 'v') for met in METODOS] + \
-            ['sigma_kriging', 'variograma_kriging']
-        escribir_csv(os.path.join(args.salida, f'interpolacion_{m.nombre}.csv'), campos_int, filas_int)
-
-    campos_g = ['malla', 'metodo', 'modelo', 'n', 'parametros'] + \
-        [c for x in (['dH', 'x1', 'x2'] if args.modelo == '18' else ['x0', 'x1', 'x2', 'x3'])
-         for c in (x, 's_' + x)] + ['sigma0', 'rmse_residuos', 'R2', 'R2_ajustado', 'mejor']
-    escribir_csv(os.path.join(args.salida, 'resumen_modelos.csv'), campos_g, resumen_global)
-    log('\n' + '=' * 78)
-    log(f'Archivos en {args.salida}: coordenadas_zero_tide.csv, puntos_rechazados.csv, '
-        f'interpolacion_<malla>.csv, modelo_parametrico_<malla>.csv, resumen_modelos.csv, reporte.txt')
-    log(f'Tiempo total: {time.time() - t0:.1f} s')
-    with open(os.path.join(args.salida, 'reporte.txt'), 'w', encoding='utf-8') as f:
-        f.write('\n'.join(BITACORA) + '\n')
+            _, sugerido = leer_cabecera_malla(ruta)
+            nombre = os.path.splitext(os.path.basename(ruta))[0]
+            sistema = preguntar_sistema(args, f'la malla {nombre}', dado, sugerido)
+            args.mallas.append((ruta, orden, sistema))
+    ejecutar(args)
 
 
 if __name__ == '__main__':

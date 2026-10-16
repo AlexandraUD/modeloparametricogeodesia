@@ -1,17 +1,12 @@
 ==============================================================================
 MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
 ==============================================================================
+  Paper: Guimarães, G. N., Matos, A. C. O. C., Blitzkow, D. & Almeida, F. G. V. (2025). High-resolution regional gravity field modeling to connect the local vertical systems in South America to the IHRF. Earth, Planets and Space 77:98. https://doi.org/10.1186/s40623-025-02226-5
+  Malla EGM2008 (coords_EGM2008.txt): ICGEM, GFZ Potsdam - https://icgem.gfz.de/calc_res/d533101e8204f4397361b8d33267c6ed173ceea602f93b06f39678a51579bc4c
+  Malla QGeoidCOL2023 y puntos coords_QGEOID2023: IGAC, Red Geodésica Nacional - https://redgeodesica.igac.gov.co/
 
 [1] RECEPCIÓN DE PUNTOS: /projects/sandbox/modeloparametricogeodesia/coords_QGEOID2023.txt
   4272 registros; separador ';'
-
-Columnas del archivo de puntos:
-  1: FID
-  2: Altura_m_s
-  3: Bloque_Aju
-  4: Latitud
-  5: Longitud
-  6: Alt_Elipso
    id -> FID
   lat -> Latitud
   lon -> Longitud
@@ -116,7 +111,7 @@ Columnas del archivo de puntos:
 ==============================================================================
 [3] INTERPOLACIÓN DE QGeoidCOL2023 EN 4210 PUNTOS (6 métodos)
     IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
-    tiempo 16.4 s; variogramas ajustados: 644 celdas
+    tiempo 16.8 s; variogramas ajustados: 644 celdas
     Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
     Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
     Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
@@ -139,7 +134,7 @@ Columnas del archivo de puntos:
 ==============================================================================
 [3] INTERPOLACIÓN DE coords_EGM2008 EN 4210 PUNTOS (6 métodos)
     IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
-    tiempo 37.7 s; variogramas ajustados: 1528 celdas
+    tiempo 38.8 s; variogramas ajustados: 1528 celdas
     Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
     Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
     Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
@@ -162,4 +157,4 @@ Columnas del archivo de puntos:
 
 ==============================================================================
 Archivos en /projects/sandbox/modeloparametricogeodesia/resultados: coordenadas_zero_tide.csv, puntos_rechazados.csv, interpolacion_<malla>.csv, modelo_parametrico_<malla>.csv, resumen_modelos.csv, reporte.txt
-Tiempo total: 57.2 s
+Tiempo total: 58.6 s

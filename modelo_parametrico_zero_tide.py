@@ -1277,7 +1277,7 @@ def main():
                     help='no preguntar: usar opciones de línea de comandos y sugerencias')
     args = ap.parse_args()
     if args.malla is None:
-        args.malla = [os.path.join(aqui, f) for f in ('QGeoidCOL2023.txt', 'coords_EGM2008.txt')
+        args.malla = [os.path.join(aqui, f) for f in ('QGeoidCOL2023.txt', 'coords_EGM2008.txt', 'EGM2008.txt')
                       if os.path.isfile(os.path.join(aqui, f))]
 
     # Preguntas (columnas y sistemas de mareas); luego el cálculo no pregunta nada.

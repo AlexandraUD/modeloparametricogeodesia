@@ -89,6 +89,51 @@ def fuente_de(nombre):
     return '—'
 
 
+def _turbo(t):
+    """Paleta 'turbo' (aproximación polinómica de Google, 2019); t en [0, 1]."""
+    r = 0.13572138 + t * (4.61539260 + t * (-42.66032258 + t * (132.13108234 + t * (-152.94239396 + t * 59.28637943))))
+    g = 0.09140261 + t * (2.19418839 + t * (4.84296658 + t * (-14.18503333 + t * (4.27729857 + t * 2.82956604))))
+    b = 0.10667330 + t * (12.64194608 + t * (-60.58204836 + t * (110.36276771 + t * (-89.90310912 + t * 27.34824973))))
+    c = lambda v: max(0, min(255, int(round(v * 255))))
+    return f'#{c(r):02x}{c(g):02x}{c(b):02x}'
+
+
+PALETA = [_turbo(k / 255) for k in range(256)]
+
+
+def curvas_de_nivel(m, niveles):
+    """Marching squares sobre la malla: {nivel: [(lon1, lat1, lon2, lat2), ...]}."""
+    import bisect as _b
+    segs = {L: [] for L in niveles}
+    lat, lon, Z = m.lat, m.lon, m.Z
+    for i in range(len(lat) - 1):
+        f0, f1 = Z[i], Z[i + 1]
+        y0, y1 = lat[i], lat[i + 1]
+        for j in range(len(lon) - 1):
+            a, b, c, d = f0[j], f0[j + 1], f1[j + 1], f1[j]       # SO, SE, NE, NO
+            if a is None or b is None or c is None or d is None:
+                continue
+            lo = min(a, b, c, d)
+            hi = max(a, b, c, d)
+            k0 = _b.bisect_right(niveles, lo)
+            k1 = _b.bisect_right(niveles, hi)
+            if k0 == k1:
+                continue
+            x0, x1 = lon[j], lon[j + 1]
+            for L in niveles[k0:k1]:
+                pts = []
+                for (za, xa, ya), (zb, xb, yb) in (((a, x0, y0), (b, x1, y0)), ((b, x1, y0), (c, x1, y1)),
+                                                   ((c, x1, y1), (d, x0, y1)), ((d, x0, y1), (a, x0, y0))):
+                    if (za >= L) != (zb >= L):
+                        t = (L - za) / (zb - za)
+                        pts.append((xa + t * (xb - xa), ya + t * (yb - ya)))
+                if len(pts) >= 2:
+                    segs[L].append((pts[0][0], pts[0][1], pts[1][0], pts[1][1]))
+                if len(pts) == 4:
+                    segs[L].append((pts[2][0], pts[2][1], pts[3][0], pts[3][1]))
+    return segs
+
+
 def numeros_bonitos(vmin, vmax, n=6):
     """Marcas 'redondas' para un eje."""
     if vmax <= vmin:
@@ -134,6 +179,7 @@ class App:
         self._tab_guia()
         self._tab_puntos()
         self._tab_mallas()
+        self._tab_mapa()
         self._tab_calcular()
         self._tab_resultados()
         self._tab_kriging()
@@ -230,9 +276,10 @@ class App:
         for t in ('2 · Puntos: elija el archivo de puntos, diga qué columna es latitud, longitud, h y H, '
                   'y en qué sistema de mareas están h y H.',
                   '3 · Mallas: agregue las mallas de N (geoide/cuasigeoide) y diga su sistema de mareas.',
-                  '4 · Calcular: revise los parámetros y presione «Ejecutar cálculo».',
-                  '5 · Resultados: tabla de los 6 métodos, R² ajustado y mejor método; puntos rechazados.',
-                  '6 · Kriging: semivariograma o covariograma del kriging en cualquier punto.'):
+                  '4 · Mapa: vea dónde están los puntos y qué zona cubre cada malla (con N en colores).',
+                  '5 · Calcular: revise los parámetros y presione «Ejecutar cálculo».',
+                  '6 · Resultados: tabla de los 6 métodos, R² ajustado y mejor método; puntos rechazados.',
+                  '7 · Kriging: semivariograma o covariograma del kriging en cualquier punto.'):
             I('  •  ' + t + '\n', 'lista')
 
         I('Puntos y mallas: no son lo mismo\n', 'h2')
@@ -244,6 +291,9 @@ class App:
           'Los puntos casi nunca caen sobre un nodo, por eso N se INTERPOLA desde los nodos de la malla '
           'hasta cada punto. Así, para cada punto se obtiene:\n')
         I('  l = h − H − N        (si todo fuera perfecto, l sería constante = desplazamiento del datum)\n', 'f')
+        I('El nombre de los archivos no importa (por ejemplo, EGM2008.txt o coords_EGM2008.txt): lo que '
+          'cuenta es cargarlos en el paso correcto, los puntos en «2 · Puntos» y las mallas en «3 · Mallas». '
+          'En «4 · Mapa» puede comprobar dónde está cada archivo antes de calcular.\n', 'nota')
 
         I('1. Sistema de mareas → zero tide (paper, sección 2.4)\n', 'h2')
         I('La marea permanente deforma la Tierra y el geoide. Hay tres convenciones: tide free, mean tide '
@@ -507,10 +557,353 @@ class App:
         self.tv_mallas.selection_set(str(k))
         self.lbl_N.configure(text=explicar_N(self.mallas[k]['sistema']))
 
-    # ---------------------------------------------------------- 4. Calcular
+    # -------------------------------------------------------------- 4. Mapa
+    def _tab_mapa(self):
+        self.mapa_mallas = {}         # ruta -> Malla (valores tal como vienen en el archivo)
+        self.mapa_cargando = set()
+        self.mapa_curvas = {}         # (ruta, paso) -> segmentos
+        self.mapa_img = None
+        self.mapa_geo = None          # transformación pantalla <-> lon/lat
+        fr = ttk.Frame(self.nb)
+        self.nb.add(fr, text='  4 · Mapa  ')
+        self._paso(fr, 'Mapa — dónde están los puntos y qué zona cubre cada malla',
+                   'Fondo de color: N de la malla elegida (valores tal como vienen en el archivo). Rectángulo: '
+                   'cobertura de cada malla cargada. Puntos: ubicaciones del archivo de puntos (después del '
+                   'cálculo, los rechazados aparecen en rojo). Pase el ratón sobre el mapa para leer lat, lon y N.')
+        ctrl = ttk.Frame(fr)
+        ctrl.pack(fill='x', padx=14)
+        ttk.Label(ctrl, text='Fondo (malla):').pack(side='left')
+        self.cb_mapa_fondo = ttk.Combobox(ctrl, state='readonly', width=24)
+        self.cb_mapa_fondo.pack(side='left', padx=(4, 12))
+        self.cb_mapa_fondo.bind('<<ComboboxSelected>>', lambda e: self._dibujar_mapa())
+        self.v_m = {k: tk.BooleanVar(value=v) for k, v in
+                    (('puntos', True), ('cobertura', True), ('curvas', True), ('nodos', False))}
+        for k, t in (('puntos', 'Puntos GNSS/nivelación'), ('cobertura', 'Cobertura de las mallas'),
+                     ('curvas', 'Curvas de nivel'), ('nodos', 'Nodos de la malla')):
+            ttk.Checkbutton(ctrl, text=t, variable=self.v_m[k],
+                            command=self._dibujar_mapa).pack(side='left', padx=4)
+        ttk.Label(ctrl, text='  cada').pack(side='left')
+        self.cb_mapa_paso = ttk.Combobox(ctrl, state='readonly', width=4, values=['2', '5', '10'])
+        self.cb_mapa_paso.set('5')
+        self.cb_mapa_paso.pack(side='left', padx=2)
+        self.cb_mapa_paso.bind('<<ComboboxSelected>>', lambda e: self._dibujar_mapa())
+        ttk.Label(ctrl, text='m').pack(side='left')
+        ttk.Button(ctrl, text='Guardar mapa (.eps)', command=self._guardar_mapa).pack(side='right')
+        ttk.Button(ctrl, text='Actualizar', command=self._dibujar_mapa).pack(side='right', padx=6)
+
+        cuerpo = ttk.Frame(fr)
+        cuerpo.pack(fill='both', expand=True, padx=14, pady=8)
+        self.cv_mapa = tk.Canvas(cuerpo, bg=BLANCO, highlightthickness=1, highlightbackground='#d5dbe3')
+        self.cv_mapa.pack(side='left', fill='both', expand=True)
+        self.cv_mapa.bind('<Configure>', lambda e: self._programar_mapa())
+        self.cv_mapa.bind('<Motion>', self._mapa_cursor)
+        self.nb.bind('<<NotebookTabChanged>>', lambda e: self._programar_mapa(), add='+')
+        self._mapa_pendiente = None
+        der = ttk.Frame(cuerpo)
+        der.pack(side='left', fill='y', padx=(10, 0))
+        self.lbl_cursor = ttk.Label(der, text='lat —   lon —   N —', style='Formula.TLabel', width=40)
+        self.lbl_cursor.pack(fill='x')
+        self.txt_mapa = tk.Text(der, width=46, font=('Consolas', 9), bg=BLANCO, relief='flat',
+                                padx=10, pady=8, wrap='word')
+        self.txt_mapa.pack(fill='both', expand=True, pady=(8, 0))
+
+    def _programar_mapa(self):
+        """Redibuja el mapa 200 ms después del último evento, solo si su pestaña está visible."""
+        if self._mapa_pendiente is not None:
+            self.root.after_cancel(self._mapa_pendiente)
+        self._mapa_pendiente = self.root.after(200, self._mapa_si_visible)
+
+    def _mapa_si_visible(self):
+        self._mapa_pendiente = None
+        if self.nb.index(self.nb.select()) == 3:
+            self._dibujar_mapa()
+
+    def _leer_coords_puntos(self):
+        """Lat/lon del archivo de puntos con las columnas elegidas en el paso 1."""
+        ruta = self.v_puntos.get().strip()
+        if not ruta or not os.path.isfile(ruta) or not self.encabezado:
+            return [], 'Sin archivo de puntos (paso 1).'
+        ilat = self.cb_col['lat'].get()
+        ilon = self.cb_col['lon'].get()
+        iid = self.cb_col['id'].get()
+        if ilat in ('', NO_VIENE) or ilon in ('', NO_VIENE):
+            return [], 'Elija las columnas de latitud y longitud (paso 1).'
+        clave = (ruta, ilat, ilon, iid)
+        if getattr(self, '_cache_coords', (None,))[0] == clave:
+            return self._cache_coords[1], None
+        _, filas, _ = mp.leer_tabla(ruta)
+        a, b = self.encabezado.index(ilat), self.encabezado.index(ilon)
+        c = self.encabezado.index(iid) if iid not in ('', NO_VIENE) else None
+        pts = []
+        for k, f in enumerate(filas):
+            la = mp._num(f[a]) if a < len(f) else None
+            lo = mp._num(f[b]) if b < len(f) else None
+            if la is None or lo is None:
+                continue
+            if lo > 180:
+                lo -= 360
+            if abs(la) <= 90 and abs(lo) <= 180:
+                pts.append((f[c].strip() if c is not None and c < len(f) else str(k + 1), la, lo))
+        self._cache_coords = (clave, pts)
+        return pts, None
+
+    def _malla_mapa(self, ruta):
+        """Devuelve la malla ya leída o lanza su lectura en segundo plano."""
+        if ruta in self.mapa_mallas:
+            return self.mapa_mallas[ruta]
+        if ruta not in self.mapa_cargando:
+            self.mapa_cargando.add(ruta)
+            self.estado.set(f'Leyendo {os.path.basename(ruta)} para el mapa…')
+
+            def leer():
+                try:
+                    self.q.put(('mapa_ok', ruta, mp.cargar_malla(ruta)))
+                except SystemExit as e:
+                    self.q.put(('mapa_error', ruta, str(e)))
+                except Exception as e:
+                    self.q.put(('mapa_error', ruta, f'No se pudo leer la malla para el mapa:\n{e}'))
+            threading.Thread(target=leer, daemon=True).start()
+        return None
+
+    def _dibujar_mapa(self):
+        if not hasattr(self, 'cv_mapa'):
+            return
+        cv = self.cv_mapa
+        W, H = cv.winfo_width(), cv.winfo_height()
+        if W < 150 or H < 150:
+            return
+        # opciones de fondo
+        nombres = [m['nombre'] for m in self.mallas]
+        self.cb_mapa_fondo.configure(values=nombres + ['(ninguno)'])
+        if self.cb_mapa_fondo.get() not in nombres + ['(ninguno)']:
+            self.cb_mapa_fondo.set(nombres[0] if nombres else '(ninguno)')
+        fondo = next((m for m in self.mallas if m['nombre'] == self.cb_mapa_fondo.get()), None)
+        cargadas = {m['ruta']: self._malla_mapa(m['ruta']) for m in self.mallas}
+        mf = cargadas.get(fondo['ruta']) if fondo else None
+        pts, aviso_pts = self._leer_coords_puntos() if self.v_m['puntos'].get() else ([], None)
+
+        cv.delete('all')
+        # extensión: fondo + puntos (+ coberturas si se muestran)
+        cajas = []
+        if mf is not None:
+            cajas.append((mf.lon[0], mf.lon[-1], mf.lat[0], mf.lat[-1]))
+        if pts:
+            cajas.append((min(p[2] for p in pts), max(p[2] for p in pts),
+                          min(p[1] for p in pts), max(p[1] for p in pts)))
+        if mf is None and (self.v_m['cobertura'].get() or not cajas):
+            # sin fondo, el encuadre abarca todas las mallas; con fondo, el de esa malla
+            cajas += [(m.lon[0], m.lon[-1], m.lat[0], m.lat[-1]) for m in cargadas.values() if m]
+        if not cajas:
+            msg = 'Cargue puntos (paso 1) o mallas (paso 2) para ver el mapa.'
+            if self.mapa_cargando:
+                msg = 'Leyendo las mallas… (unos segundos)'
+            cv.create_text(W / 2, H / 2, text=msg, fill=GRIS, font=('Segoe UI', 11))
+            return
+        lon0, lon1 = min(c[0] for c in cajas), max(c[1] for c in cajas)
+        lat0, lat1 = min(c[2] for c in cajas), max(c[3] for c in cajas)
+        mx, my = (lon1 - lon0) * 0.02 or 0.05, (lat1 - lat0) * 0.02 or 0.05
+        lon0, lon1, lat0, lat1 = lon0 - mx, lon1 + mx, lat0 - my, lat1 + my
+        # márgenes y escala con aspecto geográfico correcto (1° lon = cos φ · 1° lat)
+        L, R, T, B = 70, 110 if mf is not None else 20, 40, 52
+        aw, ah = W - L - R, H - T - B
+        k = math.cos(math.radians((lat0 + lat1) / 2))
+        esc = min(aw / ((lon1 - lon0) * k), ah / (lat1 - lat0))
+        pw, ph = (lon1 - lon0) * k * esc, (lat1 - lat0) * esc
+        ox, oy = L + (aw - pw) / 2, T + (ah - ph) / 2
+        X = lambda lo: ox + (lo - lon0) * k * esc
+        Y = lambda la: oy + (lat1 - la) * esc
+        self.mapa_geo = (ox, oy, pw, ph, lon0, lon1, lat0, lat1, mf)
+
+        info = []
+        # fondo: imagen de N (vecino más cercano por píxel)
+        if mf is not None:
+            vals = [z for fila in mf.Z for z in fila if z is not None]
+            zmin, zmax = min(vals), max(vals)
+            if zmax - zmin < 1e-12:
+                zmax = zmin + 1.0
+            iw, ih = max(int(pw), 1), max(int(ph), 1)
+            img = tk.PhotoImage(width=iw, height=ih)
+            dl, dlo = mf.lat[1] - mf.lat[0], mf.lon[1] - mf.lon[0]
+            nl, nlo = len(mf.lat), len(mf.lon)
+            cols_j = []
+            for px in range(iw):
+                lo = lon0 + (px + 0.5) / iw * (lon1 - lon0)
+                j = round((lo - mf.lon[0]) / dlo)
+                cols_j.append(j if 0 <= j < nlo else None)
+            filas = []
+            for py in range(ih):
+                la = lat1 - (py + 0.5) / ih * (lat1 - lat0)
+                i = round((la - mf.lat[0]) / dl)
+                if not 0 <= i < nl:
+                    filas.append('{' + ' '.join([BLANCO] * iw) + '}')
+                    continue
+                fz = mf.Z[i]
+                fila = []
+                for j in cols_j:
+                    z = fz[j] if j is not None else None
+                    fila.append(BLANCO if z is None else PALETA[int((z - zmin) / (zmax - zmin) * 255)])
+                filas.append('{' + ' '.join(fila) + '}')
+            img.put(' '.join(filas), to=(0, 0))
+            self.mapa_img = img
+            cv.create_image(ox, oy, image=img, anchor='nw')
+            # curvas de nivel
+            if self.v_m['curvas'].get():
+                paso = float(self.cb_mapa_paso.get())
+                clave = (fondo['ruta'], paso)
+                if clave not in self.mapa_curvas:
+                    niveles = [paso * n for n in range(math.ceil(zmin / paso), math.floor(zmax / paso) + 1)]
+                    self.mapa_curvas[clave] = curvas_de_nivel(mf, niveles)
+                for nivel, segs in self.mapa_curvas[clave].items():
+                    ancho = 1.2 if abs(nivel % (2 * paso)) < 1e-9 else 0.6
+                    for x1, y1, x2, y2 in segs:
+                        cv.create_line(X(x1), Y(y1), X(x2), Y(y2), fill='#222222', width=ancho)
+                    if segs:                         # etiqueta en el segmento central
+                        x1, y1, x2, y2 = segs[len(segs) // 2]
+                        cv.create_text(X((x1 + x2) / 2), Y((y1 + y2) / 2), text=f'{nivel:g}',
+                                       font=('Segoe UI', 7), fill='#111111')
+            # nodos (submuestreados si son muchos)
+            if self.v_m['nodos'].get():
+                s = max(1, math.ceil(math.sqrt(nl * nlo / 30000)))
+                for i in range(0, nl, s):
+                    yy = Y(mf.lat[i])
+                    for j in range(0, nlo, s):
+                        if mf.Z[i][j] is not None:
+                            xx = X(mf.lon[j])
+                            cv.create_rectangle(xx, yy, xx + 1, yy + 1, outline='#333333')
+                info.append(f'Nodos dibujados: 1 de cada {s} en cada dirección' if s > 1 else
+                            'Nodos dibujados: todos')
+            # barra de color
+            bx, by0, by1 = ox + pw + 22, oy, oy + ph
+            for n in range(int(by1 - by0)):
+                cv.create_line(bx, by1 - n, bx + 16, by1 - n,
+                               fill=PALETA[int(n / max(by1 - by0 - 1, 1) * 255)])
+            cv.create_rectangle(bx, by0, bx + 16, by1, outline='#555555')
+            for v in numeros_bonitos(zmin, zmax, 7):
+                if zmin <= v <= zmax:
+                    yy = by1 - (v - zmin) / (zmax - zmin) * (by1 - by0)
+                    cv.create_line(bx + 16, yy, bx + 20, yy, fill='#555555')
+                    cv.create_text(bx + 23, yy, text=f'{v:g}', anchor='w', font=('Segoe UI', 8))
+            cv.create_text(bx + 8, by0 - 12, text='N [m]', font=('Segoe UI', 9, 'bold'))
+            paso_min = (mf.lat[1] - mf.lat[0]) * 60
+            titulo = (f'{os.path.basename(fondo["ruta"])}: {nl} x {nlo} nodos, paso {paso_min:.4g}\'')
+        else:
+            cv.create_rectangle(ox, oy, ox + pw, oy + ph, fill='#f8fafc', outline='')
+            titulo = 'Ubicación de los datos cargados'
+        # cobertura de cada malla
+        if self.v_m['cobertura'].get():
+            colores = ['#c0392b', '#1a5276', '#7d3c98', '#117864']
+            for n, m in enumerate(self.mallas):
+                g = cargadas.get(m['ruta'])
+                if g is None:
+                    continue
+                col = colores[n % len(colores)]
+                x1, x2 = max(X(g.lon[0]), ox), min(X(g.lon[-1]), ox + pw)     # recorte al marco
+                y1, y2 = max(Y(g.lat[-1]), oy), min(Y(g.lat[0]), oy + ph)
+                if x2 <= x1 or y2 <= y1:
+                    continue
+                cv.create_rectangle(x1, y1, x2, y2, outline=col, width=2, dash=(8, 4))
+                sale = (X(g.lon[0]) < ox - 1 or X(g.lon[-1]) > ox + pw + 1 or
+                        Y(g.lat[-1]) < oy - 1 or Y(g.lat[0]) > oy + ph + 1)
+                cv.create_text(x1 + 4, y1 + 4 + 14 * n, anchor='nw', fill=col,
+                               font=('Segoe UI', 8, 'bold'),
+                               text=os.path.basename(m['ruta']) + ('  (continúa fuera del mapa)' if sale else ''))
+        # puntos
+        rech = set()
+        if self.salida:
+            rech = {r['id'] for r in self.salida['rechazos']}
+        n_rech = 0
+        for pid, la, lo in pts:
+            xx, yy = X(lo), Y(la)
+            if pid in rech:
+                n_rech += 1
+                cv.create_line(xx - 3, yy - 3, xx + 4, yy + 4, fill=ROJO, width=2)
+                cv.create_line(xx - 3, yy + 3, xx + 4, yy - 4, fill=ROJO, width=2)
+            else:
+                cv.create_oval(xx - 1.6, yy - 1.6, xx + 1.6, yy + 1.6, fill='#000000', outline='')
+        # ejes
+        cv.create_rectangle(ox, oy, ox + pw, oy + ph, outline='#555555')
+        for v in numeros_bonitos(lon0, lon1, 8):
+            if lon0 <= v <= lon1:
+                cv.create_line(X(v), oy + ph, X(v), oy + ph + 5, fill='#555555')
+                cv.create_text(X(v), oy + ph + 15, text=f'{v:g}', font=('Segoe UI', 8))
+        for v in numeros_bonitos(lat0, lat1, 9):
+            if lat0 <= v <= lat1:
+                cv.create_line(ox - 5, Y(v), ox, Y(v), fill='#555555')
+                cv.create_text(ox - 8, Y(v), text=f'{v:g}', anchor='e', font=('Segoe UI', 8))
+        cv.create_text(ox + pw / 2, oy + ph + 34, text='Longitud (grados)', font=('Segoe UI', 9))
+        cv.create_text(ox - 48, oy + ph / 2, text='Latitud (grados)', angle=90, font=('Segoe UI', 9))
+        cv.create_text(ox + pw / 2, oy - 18, text=titulo, font=('Segoe UI', 11, 'bold'), fill='#1b2631')
+
+        # panel de información
+        t = self.txt_mapa
+        t.configure(state='normal')
+        t.delete('1.0', 'end')
+        t.tag_configure('t', font=('Segoe UI', 10, 'bold'), foreground=AZUL)
+        t.insert('end', 'Archivo de puntos\n', 't')
+        if pts:
+            t.insert('end', f'{os.path.basename(self.v_puntos.get())}\n'
+                            f'{len(pts)} puntos con coordenadas válidas\n'
+                            f'lat [{min(p[1] for p in pts):.3f}, {max(p[1] for p in pts):.3f}]\n'
+                            f'lon [{min(p[2] for p in pts):.3f}, {max(p[2] for p in pts):.3f}]\n')
+            if self.salida:
+                t.insert('end', f'Rechazados en la depuración: {n_rech} (× rojas)\n')
+        else:
+            t.insert('end', (aviso_pts or 'Puntos ocultos.') + '\n')
+        t.insert('end', '\nMallas\n', 't')
+        for m in self.mallas:
+            g = cargadas.get(m['ruta'])
+            t.insert('end', f'{os.path.basename(m["ruta"])}  ({fuente_de(m["nombre"])})\n')
+            if g is None:
+                t.insert('end', '  leyendo…\n')
+                continue
+            vals = [z for fila in g.Z for z in fila if z is not None]
+            t.insert('end', f'  {len(g.lat)} x {len(g.lon)} nodos, paso {(g.lat[1] - g.lat[0]) * 60:.4g}\'\n'
+                            f'  lat [{g.lat[0]:.3f}, {g.lat[-1]:.3f}]\n'
+                            f'  lon [{g.lon[0]:.3f}, {g.lon[-1]:.3f}]\n'
+                            f'  N [{min(vals):.3f}, {max(vals):.3f}] m\n')
+            if pts:
+                fuera = sum(1 for _, la, lo in pts
+                            if not (g.lat[0] <= la <= g.lat[-1] and g.lon[0] <= lo <= g.lon[-1]))
+                t.insert('end', f'  puntos fuera de su cobertura: {fuera}\n')
+        t.insert('end', '\nLos valores de N del mapa son los del archivo, sin corrección de marea. '
+                        'Coordenadas geodésicas (grados); el mapa conserva la proporción real '
+                        '(1° de longitud = cos φ · 1° de latitud).\n')
+        for x in info:
+            t.insert('end', x + '\n')
+        t.configure(state='disabled')
+        self.estado.set('Mapa actualizado.' if not self.mapa_cargando else 'Leyendo mallas para el mapa…')
+
+    def _mapa_cursor(self, ev):
+        if not self.mapa_geo:
+            return
+        ox, oy, pw, ph, lon0, lon1, lat0, lat1, mf = self.mapa_geo
+        if not (ox <= ev.x <= ox + pw and oy <= ev.y <= oy + ph):
+            return
+        lo = lon0 + (ev.x - ox) / pw * (lon1 - lon0)
+        la = lat1 - (ev.y - oy) / ph * (lat1 - lat0)
+        txt = f'lat {la:8.4f}°   lon {lo:9.4f}°'
+        if mf is not None:
+            try:
+                z, _, _ = mp.interpolar(mf, 'Bilineal', la, lo, None, None, None)
+                txt += f'   N {z:8.3f} m'
+            except mp.NoAplicable:
+                txt += '   N —'
+        self.lbl_cursor.configure(text=txt)
+
+    def _guardar_mapa(self):
+        r = filedialog.asksaveasfilename(title='Guardar mapa', defaultextension='.eps',
+                                         initialdir=self.v['salida'].get() if os.path.isdir(
+                                             self.v['salida'].get()) else AQUI,
+                                         initialfile='mapa_datos.eps',
+                                         filetypes=[('PostScript encapsulado', '*.eps')])
+        if r:
+            self.cv_mapa.postscript(file=r, colormode='color')
+            self.estado.set(f'Mapa guardado: {r}')
+
+    # ---------------------------------------------------------- 5. Calcular
     def _tab_calcular(self):
         fr = ttk.Frame(self.nb)
-        self.nb.add(fr, text='  4 · Calcular  ')
+        self.nb.add(fr, text='  5 · Calcular  ')
         self._paso(fr, 'Paso 3 — Parámetros y ejecución',
                    'Los valores por defecto son los de appQGeoidCOL2023_0.m. Presione «Ejecutar cálculo»; '
                    'con dos mallas tarda alrededor de un minuto. La bitácora muestra cada paso.')
@@ -679,6 +1072,13 @@ class App:
                 elif tipo == 'prog':
                     self.pb['value'] = msg[1]
                     self.lbl_prog.configure(text=msg[2])
+                elif tipo == 'mapa_ok':
+                    self.mapa_mallas[msg[1]] = msg[2]
+                    self.mapa_cargando.discard(msg[1])
+                    self._dibujar_mapa()
+                elif tipo == 'mapa_error':
+                    self.mapa_cargando.discard(msg[1])
+                    messagebox.showerror('Mapa', msg[2])
                 else:
                     self.btn_ejecutar.configure(state='normal')
                     self.btn_detener.configure(state='disabled')
@@ -687,9 +1087,10 @@ class App:
                         self.salida = msg[1]
                         self._mostrar_resultados()
                         self._preparar_kriging()
+                        self._dibujar_mapa()
                         self.estado.set(f'Terminado. Resultados en {self.salida["carpeta"]}')
                         if self.salida['resultados']:
-                            self.nb.select(4)
+                            self.nb.select(5)
                         elif self.salida['aviso']:
                             messagebox.showinfo('Resultado', self.salida['aviso'])
                     elif tipo == 'cancelado':
@@ -704,13 +1105,13 @@ class App:
     # -------------------------------------------------------- 5. Resultados
     def _tab_resultados(self):
         fr = ttk.Frame(self.nb)
-        self.nb.add(fr, text='  5 · Resultados  ')
+        self.nb.add(fr, text='  6 · Resultados  ')
         self._paso(fr, 'Resultados — modelo paramétrico y mejor método',
                    'Para cada malla: parámetros de la Ec. (18) con su desviación estándar, σ₀, R² y R² '
                    'ajustado de cada método de interpolación. En verde, el método con mayor R²_adj.')
         top = ttk.Frame(fr)
         top.pack(fill='x', padx=14)
-        self.lbl_dep = ttk.Label(top, text='Aún no hay resultados: ejecute el cálculo en la pestaña 4.')
+        self.lbl_dep = ttk.Label(top, text='Aún no hay resultados: ejecute el cálculo en la pestaña 5.')
         self.lbl_dep.pack(side='left')
         ttk.Button(top, text='Abrir carpeta de resultados', command=self._abrir_carpeta).pack(side='right')
         self.nb_res = ttk.Notebook(fr)
@@ -843,7 +1244,7 @@ class App:
     # ----------------------------------------------- 6. Kriging/variograma
     def _tab_kriging(self):
         fr = ttk.Frame(self.nb)
-        self.nb.add(fr, text='  6 · Kriging: semivariograma  ')
+        self.nb.add(fr, text='  7 · Kriging: semivariograma  ')
         self._paso(fr, 'Kriging ordinario — semivariograma / covariograma en un punto',
                    'Para cada punto el variograma se ajusta con los nodos de la malla en una ventana '
                    'alrededor del punto (2·semiancho × 2·semiancho nodos). Puntos = valores experimentales '
@@ -897,7 +1298,7 @@ class App:
 
     def _datos_variograma(self):
         if not self.salida or not self.salida['resultados']:
-            return None, 'Ejecute el cálculo (pestaña 4) para ver el semivariograma del kriging.'
+            return None, 'Ejecute el cálculo (pestaña 5) para ver el semivariograma del kriging.'
         nombre = self.cb_k_malla.get()
         r = next((x for x in self.salida['resultados'] if x['malla'].nombre == nombre), None)
         if r is None:
@@ -1053,7 +1454,7 @@ class App:
         if os.path.isfile(p):
             self.v_puntos.set(p)
             self._cargar_puntos(p)
-        for f in ('QGeoidCOL2023.txt', 'coords_EGM2008.txt'):
+        for f in ('QGeoidCOL2023.txt', 'coords_EGM2008.txt', 'EGM2008.txt'):
             ruta = os.path.join(AQUI, f)
             if os.path.isfile(ruta):
                 self._agregar_malla(ruta)

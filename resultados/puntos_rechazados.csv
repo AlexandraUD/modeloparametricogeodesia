@@ -1,0 +1,63 @@
+id,linea,lat,lon,h,H,regla,detalle
+406,408,4.533465386,-74.27412471,2627.941,2604.88871,R3 coordenadas duplicadas,mismas lat/lon que la línea 407
+869,871,5.516538108,-75.57824821,0.005,660.27825,R4 altura elipsoidal nula,h=0.005 m con H=660.27825 m
+1305,1307,6.490011138,-74.40258276,0.006,113.34475,R4 altura elipsoidal nula,h=0.006 m con H=113.34475 m
+2035,2037,9.926317706,-73.97518123,0.0,63.16647,R4 altura elipsoidal nula,h=0.0 m con H=63.16647 m
+2044,2046,9.909720848,-74.0932759,0.0,101.43721,R4 altura elipsoidal nula,h=0.0 m con H=101.43721 m
+2482,2484,10.34827716,-73.05158566,700.728,153.55648,R5 h-H no plausible,h-H=547.172 m (|N| > 150 m)
+2483,2485,10.35426501,-73.05177813,818.116,165.6755,R5 h-H no plausible,h-H=652.440 m (|N| > 150 m)
+2533,2535,10.12852002,-73.66821867,143.312,143.48361,R3 coordenadas duplicadas,mismas lat/lon que la línea 2532
+2548,2550,9.991416611,-73.84741835,113.737,116.17487,R3 coordenadas duplicadas,mismas lat/lon que la línea 2549
+2977,2979,7.375886172,-72.65060212,0.0,2288.85345,R4 altura elipsoidal nula,h=0.0 m con H=2288.85345 m
+2979,2981,7.378063663,-72.65060184,0.0,2308.34822,R4 altura elipsoidal nula,h=0.0 m con H=2308.34822 m
+2981,2983,7.384423664,-72.6473999,0.0,2355.13101,R4 altura elipsoidal nula,h=0.0 m con H=2355.13101 m
+3093,3095,7.117538486,-73.11823477,0.0,965.27717,R4 altura elipsoidal nula,h=0.0 m con H=965.27717 m
+3094,3096,7.131269138,-73.12400467,0.0,983.71908,R4 altura elipsoidal nula,h=0.0 m con H=983.71908 m
+3095,3097,7.109042619,-73.11438495,0.0,958.30291,R4 altura elipsoidal nula,h=0.0 m con H=958.30291 m
+3096,3098,7.104093896,-73.12373446,0.0,924.32591,R4 altura elipsoidal nula,h=0.0 m con H=924.32591 m
+3190,3192,7.741222538,-73.40724694,0.0,101.33699,R4 altura elipsoidal nula,h=0.0 m con H=101.33699 m
+3300,3302,7.102786811,-73.6838413,0.0,88.68687,R4 altura elipsoidal nula,h=0.0 m con H=88.68687 m
+3303,3305,7.08486854,-73.71517804,0.0,94.7103,R4 altura elipsoidal nula,h=0.0 m con H=94.7103 m
+3308,3310,7.044913644,-73.76018559,0.0,76.28129,R4 altura elipsoidal nula,h=0.0 m con H=76.28129 m
+3310,3312,7.047470852,-73.78561379,0.0,88.07729,R4 altura elipsoidal nula,h=0.0 m con H=88.07729 m
+3312,3314,7.045669656,-73.81014938,0.0,101.45754,R4 altura elipsoidal nula,h=0.0 m con H=101.45754 m
+3316,3318,7.049927396,-73.8406171,0.0,97.34609,R4 altura elipsoidal nula,h=0.0 m con H=97.34609 m
+3317,3319,7.054025823,-73.84948949,0.0,76.63889,R4 altura elipsoidal nula,h=0.0 m con H=76.63889 m
+3318,3320,7.064829976,-73.84767838,0.0,85.75592,R4 altura elipsoidal nula,h=0.0 m con H=85.75592 m
+4177,4179,9.563096405,-73.34067834,0.0,131.6137,R4 altura elipsoidal nula,h=0.0 m con H=131.6137 m
+4261,4263,4.367154,-74.381604,0.0,1483.44889,R4 altura elipsoidal nula,h=0.0 m con H=1483.44889 m
+137,139,3.892267706,-76.31237679,983.295,952.22976,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=1.537 m, mediana=0.188 m, |l-med|=1.349 > 1.252 m"
+860,862,5.40665619,-75.59705808,733.76,707.11635,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=1.648 m, mediana=0.188 m, |l-med|=1.460 > 1.252 m"
+1120,1122,5.437979579,-74.67971664,198.56,179.74295,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=2.206 m, mediana=0.188 m, |l-med|=2.017 > 1.252 m"
+1127,1129,5.379832357,-74.71386429,212.4,193.11557,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=2.312 m, mediana=0.188 m, |l-med|=2.124 > 1.252 m"
+1128,1130,5.357241085,-74.72613866,219.075,199.61601,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=2.294 m, mediana=0.188 m, |l-med|=2.106 > 1.252 m"
+1129,1131,5.343462867,-74.73663269,222.757,203.14851,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=2.289 m, mediana=0.188 m, |l-med|=2.101 > 1.252 m"
+1138,1140,5.22955252,-74.73357985,217.182,197.26249,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=2.163 m, mediana=0.188 m, |l-med|=1.975 > 1.252 m"
+1631,1633,8.923474549,-75.43428146,75.14,14.46828,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=60.676 m, mediana=0.188 m, |l-med|=60.488 > 1.252 m"
+1778,1780,10.393278,-75.483444,3.273,7.34098,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=1.636 m, mediana=0.188 m, |l-med|=1.448 > 1.252 m"
+1948,1950,10.70308777,-74.1414596,31.427,29.35986,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=2.415 m, mediana=0.188 m, |l-med|=2.227 > 1.252 m"
+1952,1954,10.73551033,-74.12032629,30.146,31.35676,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-1.601 m, mediana=0.188 m, |l-med|=1.790 > 1.252 m"
+2386,2388,11.15279619,-72.65261361,178.646,210.13678,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-22.025 m, mediana=0.188 m, |l-med|=22.213 > 1.252 m"
+2390,2392,11.13239974,-72.69133157,178.234,209.15559,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-22.100 m, mediana=0.188 m, |l-med|=22.288 > 1.252 m"
+2426,2428,10.89127764,-72.86869343,165.74,191.93095,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-22.167 m, mediana=0.188 m, |l-med|=22.356 > 1.252 m"
+2429,2431,10.88897194,-72.88904948,174.801,200.77179,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-22.201 m, mediana=0.188 m, |l-med|=22.389 > 1.252 m"
+2436,2438,10.841314,-72.94408083,189.222,214.11427,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-22.260 m, mediana=0.188 m, |l-med|=22.448 > 1.252 m"
+2458,2460,10.64951142,-72.94060084,206.73,229.51065,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-21.891 m, mediana=0.188 m, |l-med|=22.080 > 1.252 m"
+2491,2493,10.42209231,-73.15239645,162.157,119.59958,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=41.083 m, mediana=0.188 m, |l-med|=40.895 > 1.252 m"
+2501,2503,10.44552279,-73.2427056,124.809,145.1245,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-22.178 m, mediana=0.188 m, |l-med|=22.367 > 1.252 m"
+2538,2540,10.05716801,-73.77849062,110.304,120.41046,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-8.911 m, mediana=0.188 m, |l-med|=9.100 > 1.252 m"
+2540,2542,10.07687452,-73.75067647,119.241,111.16997,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=8.844 m, mediana=0.188 m, |l-med|=8.656 > 1.252 m"
+2545,2547,9.898615135,-73.8397839,71.339,174.62708,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-100.240 m, mediana=0.188 m, |l-med|=100.428 > 1.252 m"
+2546,2548,9.900801784,-73.84174037,68.14,151.42278,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-80.235 m, mediana=0.188 m, |l-med|=80.424 > 1.252 m"
+2620,2622,9.161495534,-73.60272399,33.763,45.70755,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-10.282 m, mediana=0.188 m, |l-med|=10.471 > 1.252 m"
+2628,2630,9.214043393,-73.8821185,35.14,63.03929,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-25.051 m, mediana=0.188 m, |l-med|=25.239 > 1.252 m"
+2629,2631,9.209912,-73.88100642,32.479,62.57879,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-27.273 m, mediana=0.188 m, |l-med|=27.461 > 1.252 m"
+2630,2632,9.165798997,-73.840833,28.964,85.78966,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-54.291 m, mediana=0.188 m, |l-med|=54.479 > 1.252 m"
+2998,3000,7.329962434,-72.7248627,2832.348,2819.16619,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=1.834 m, mediana=0.188 m, |l-med|=1.646 > 1.252 m"
+3572,3574,5.71733176,-73.37521784,2931.544,2906.11784,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=3.550 m, mediana=0.188 m, |l-med|=3.362 > 1.252 m"
+3672,3674,4.922000328,-73.9976171,2581.701,2556.07214,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=3.027 m, mediana=0.188 m, |l-med|=2.839 > 1.252 m"
+3686,3688,4.819337792,-74.09450657,2584.689,2557.65771,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=4.489 m, mediana=0.188 m, |l-med|=4.300 > 1.252 m"
+4022,4024,1.338042881,-77.27784533,2131.151,2138.40934,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-35.348 m, mediana=0.188 m, |l-med|=35.536 > 1.252 m"
+4023,4025,1.332312616,-77.27577464,2124.9,2125.20859,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-28.437 m, mediana=0.188 m, |l-med|=28.625 > 1.252 m"
+4024,4026,1.330459598,-77.27610674,2111.668,2118.83559,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=-35.307 m, mediana=0.188 m, |l-med|=35.495 > 1.252 m"
+4179,4181,9.555979294,-73.36566789,131.117,107.82151,R6 error grosero (h-H-N),"malla QGeoidCOL2023: l=25.212 m, mediana=0.188 m, |l-med|=25.024 > 1.252 m"

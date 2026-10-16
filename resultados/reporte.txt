@@ -1,0 +1,164 @@
+==============================================================================
+MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
+==============================================================================
+
+[1] RECEPCIÓN DE PUNTOS: /projects/sandbox/modeloparametricogeodesia/coords_QGEOID2023.txt
+  4272 registros; separador ';'
+
+Columnas del archivo de puntos:
+  1: FID
+  2: Altura_m_s
+  3: Bloque_Aju
+  4: Latitud
+  5: Longitud
+  6: Alt_Elipso
+   id -> FID
+  lat -> Latitud
+  lon -> Longitud
+    h -> Alt_Elipso
+    H -> Altura_m_s
+
+  Sistema de mareas de los puntos:
+    h: zero_tide -> sin transformación
+    H: zero_tide -> sin transformación
+
+[1b] DEPURACIÓN DE PUNTOS (R1-R5)
+  válidos tras R1-R5: 4245 de 4272 (rechazados 27)
+
+[1c] MALLAS DE N (geoide / cuasigeoide)
+  Malla QGeoidCOL2023 (lat lon N; columnas lat,lon)
+    nodos válidos 32224, no numéricos 0, no finitos 0, gapvalue 0, fuera de rango 0
+    212 x 152 nodos, paso 5.0000' x 5.0000', lat [-4.7833, 12.8000], lon [-79.3000, -66.7167]
+    duplicados 0 (con valor distinto 0), nodos faltantes 0, N en [-39.949, 33.425] m
+  Malla QGeoidCOL2023: zero_tide -> sin transformación.
+  Malla coords_EGM2008 (ICGEM; columnas lon,lat)
+    nodos válidos 291781, no numéricos 0, no finitos 0, gapvalue 0, fuera de rango 0
+    571 x 511 nodos, paso 2.0000' x 2.0000', lat [-6.0000, 13.0000], lon [-83.0000, -66.0000]
+    duplicados 0 (con valor distinto 0), nodos faltantes 0, N en [-41.879, 32.773] m
+    El encabezado declara tide_system = tide_free
+    AVISO: el encabezado de coords_EGM2008 dice tide_free, pero se indicó zero_tide; se usa lo indicado por el usuario.
+  Malla coords_EGM2008: zero_tide -> sin transformación.
+
+[1d] DEPURACIÓN CONTRA LAS MALLAS (R6 error grosero, R7 cobertura)
+  R6 con QGeoidCOL2023: mediana(l)=0.188 m, σ_robusta=0.250 m, límite ±1.252 m -> 35 puntos
+  R6 con coords_EGM2008: mediana(l)=1.074 m, σ_robusta=0.496 m, límite ±2.478 m -> 29 puntos
+
+  RESUMEN DE DEPURACIÓN: 4210 puntos aceptados, 62 rechazados
+    R3 coordenadas duplicadas: 3
+    R4 altura elipsoidal nula: 22
+    R5 h-H no plausible: 2
+    R6 error grosero (h-H-N): 35
+    - id 406 (línea 408): R3 coordenadas duplicadas | mismas lat/lon que la línea 407
+    - id 869 (línea 871): R4 altura elipsoidal nula | h=0.005 m con H=660.27825 m
+    - id 1305 (línea 1307): R4 altura elipsoidal nula | h=0.006 m con H=113.34475 m
+    - id 2035 (línea 2037): R4 altura elipsoidal nula | h=0.0 m con H=63.16647 m
+    - id 2044 (línea 2046): R4 altura elipsoidal nula | h=0.0 m con H=101.43721 m
+    - id 2482 (línea 2484): R5 h-H no plausible | h-H=547.172 m (|N| > 150 m)
+    - id 2483 (línea 2485): R5 h-H no plausible | h-H=652.440 m (|N| > 150 m)
+    - id 2533 (línea 2535): R3 coordenadas duplicadas | mismas lat/lon que la línea 2532
+    - id 2548 (línea 2550): R3 coordenadas duplicadas | mismas lat/lon que la línea 2549
+    - id 2977 (línea 2979): R4 altura elipsoidal nula | h=0.0 m con H=2288.85345 m
+    - id 2979 (línea 2981): R4 altura elipsoidal nula | h=0.0 m con H=2308.34822 m
+    - id 2981 (línea 2983): R4 altura elipsoidal nula | h=0.0 m con H=2355.13101 m
+    - id 3093 (línea 3095): R4 altura elipsoidal nula | h=0.0 m con H=965.27717 m
+    - id 3094 (línea 3096): R4 altura elipsoidal nula | h=0.0 m con H=983.71908 m
+    - id 3095 (línea 3097): R4 altura elipsoidal nula | h=0.0 m con H=958.30291 m
+    - id 3096 (línea 3098): R4 altura elipsoidal nula | h=0.0 m con H=924.32591 m
+    - id 3190 (línea 3192): R4 altura elipsoidal nula | h=0.0 m con H=101.33699 m
+    - id 3300 (línea 3302): R4 altura elipsoidal nula | h=0.0 m con H=88.68687 m
+    - id 3303 (línea 3305): R4 altura elipsoidal nula | h=0.0 m con H=94.7103 m
+    - id 3308 (línea 3310): R4 altura elipsoidal nula | h=0.0 m con H=76.28129 m
+    - id 3310 (línea 3312): R4 altura elipsoidal nula | h=0.0 m con H=88.07729 m
+    - id 3312 (línea 3314): R4 altura elipsoidal nula | h=0.0 m con H=101.45754 m
+    - id 3316 (línea 3318): R4 altura elipsoidal nula | h=0.0 m con H=97.34609 m
+    - id 3317 (línea 3319): R4 altura elipsoidal nula | h=0.0 m con H=76.63889 m
+    - id 3318 (línea 3320): R4 altura elipsoidal nula | h=0.0 m con H=85.75592 m
+    - id 4177 (línea 4179): R4 altura elipsoidal nula | h=0.0 m con H=131.6137 m
+    - id 4261 (línea 4263): R4 altura elipsoidal nula | h=0.0 m con H=1483.44889 m
+    - id 137 (línea 139): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=1.537 m, mediana=0.188 m, |l-med|=1.349 > 1.252 m
+    - id 860 (línea 862): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=1.648 m, mediana=0.188 m, |l-med|=1.460 > 1.252 m
+    - id 1120 (línea 1122): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=2.206 m, mediana=0.188 m, |l-med|=2.017 > 1.252 m
+    - id 1127 (línea 1129): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=2.312 m, mediana=0.188 m, |l-med|=2.124 > 1.252 m
+    - id 1128 (línea 1130): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=2.294 m, mediana=0.188 m, |l-med|=2.106 > 1.252 m
+    - id 1129 (línea 1131): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=2.289 m, mediana=0.188 m, |l-med|=2.101 > 1.252 m
+    - id 1138 (línea 1140): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=2.163 m, mediana=0.188 m, |l-med|=1.975 > 1.252 m
+    - id 1631 (línea 1633): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=60.676 m, mediana=0.188 m, |l-med|=60.488 > 1.252 m
+    - id 1778 (línea 1780): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=1.636 m, mediana=0.188 m, |l-med|=1.448 > 1.252 m
+    - id 1948 (línea 1950): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=2.415 m, mediana=0.188 m, |l-med|=2.227 > 1.252 m
+    - id 1952 (línea 1954): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-1.601 m, mediana=0.188 m, |l-med|=1.790 > 1.252 m
+    - id 2386 (línea 2388): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-22.025 m, mediana=0.188 m, |l-med|=22.213 > 1.252 m
+    - id 2390 (línea 2392): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-22.100 m, mediana=0.188 m, |l-med|=22.288 > 1.252 m
+    - id 2426 (línea 2428): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-22.167 m, mediana=0.188 m, |l-med|=22.356 > 1.252 m
+    - id 2429 (línea 2431): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-22.201 m, mediana=0.188 m, |l-med|=22.389 > 1.252 m
+    - id 2436 (línea 2438): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-22.260 m, mediana=0.188 m, |l-med|=22.448 > 1.252 m
+    - id 2458 (línea 2460): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-21.891 m, mediana=0.188 m, |l-med|=22.080 > 1.252 m
+    - id 2491 (línea 2493): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=41.083 m, mediana=0.188 m, |l-med|=40.895 > 1.252 m
+    - id 2501 (línea 2503): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-22.178 m, mediana=0.188 m, |l-med|=22.367 > 1.252 m
+    - id 2538 (línea 2540): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-8.911 m, mediana=0.188 m, |l-med|=9.100 > 1.252 m
+    - id 2540 (línea 2542): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=8.844 m, mediana=0.188 m, |l-med|=8.656 > 1.252 m
+    - id 2545 (línea 2547): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-100.240 m, mediana=0.188 m, |l-med|=100.428 > 1.252 m
+    - id 2546 (línea 2548): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-80.235 m, mediana=0.188 m, |l-med|=80.424 > 1.252 m
+    - id 2620 (línea 2622): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-10.282 m, mediana=0.188 m, |l-med|=10.471 > 1.252 m
+    - id 2628 (línea 2630): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-25.051 m, mediana=0.188 m, |l-med|=25.239 > 1.252 m
+    - id 2629 (línea 2631): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-27.273 m, mediana=0.188 m, |l-med|=27.461 > 1.252 m
+    - id 2630 (línea 2632): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-54.291 m, mediana=0.188 m, |l-med|=54.479 > 1.252 m
+    - id 2998 (línea 3000): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=1.834 m, mediana=0.188 m, |l-med|=1.646 > 1.252 m
+    - id 3572 (línea 3574): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=3.550 m, mediana=0.188 m, |l-med|=3.362 > 1.252 m
+    - id 3672 (línea 3674): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=3.027 m, mediana=0.188 m, |l-med|=2.839 > 1.252 m
+    - id 3686 (línea 3688): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=4.489 m, mediana=0.188 m, |l-med|=4.300 > 1.252 m
+    - id 4022 (línea 4024): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-35.348 m, mediana=0.188 m, |l-med|=35.536 > 1.252 m
+    - id 4023 (línea 4025): R6 error grosero (h-H-N) | malla QGeoidCOL2023: l=-28.437 m, mediana=0.188 m, |l-med|=28.625 > 1.252 m
+    ... (2 más en puntos_rechazados.csv)
+
+[2] EXPORTACIÓN: 4210 puntos en zero tide -> /projects/sandbox/modeloparametricogeodesia/resultados/coordenadas_zero_tide.csv
+
+==============================================================================
+[3] INTERPOLACIÓN DE QGeoidCOL2023 EN 4210 PUNTOS (6 métodos)
+    IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
+    tiempo 16.9 s; variogramas ajustados: 644 celdas
+    Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
+    Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
+    Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
+    Bicubica               aplicable en  4210 puntos, max|Σw-1| = 3.4e-15
+    IDW                    aplicable en  4210 puntos, max|Σw-1| = 8.9e-16
+    Kriging ordinario      aplicable en  4210 puntos, max|Σw-1| = 8.9e-16
+
+[4] MODELO PARAMÉTRICO Ec. (18) sobre l = h_ZT - H_ZT - N_ZT, P = I
+    l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)
+    Método                              dH              x1              x2   σ0 [m]        R²       R²adj
+    Vecino mas cercano       0.2179±0.0061  -0.0457±0.0030  -0.0175±0.0063   0.3940  0.104443  0.10401741
+    Lineal por triangulos    0.2124±0.0036  -0.0387±0.0018  -0.0177±0.0038   0.2360  0.196039  0.19565699
+    Bilineal                 0.2100±0.0036  -0.0380±0.0018  -0.0168±0.0038   0.2365  0.188533  0.18814748
+    Bicubica                 0.2196±0.0036  -0.0401±0.0018  -0.0168±0.0037   0.2320  0.209101  0.20872527  <-- MEJOR
+    IDW                      0.1964±0.0040  -0.0353±0.0020  -0.0193±0.0042   0.2605  0.149760  0.14935584
+    Kriging ordinario        0.2054±0.0037  -0.0381±0.0018  -0.0049±0.0039   0.2400  0.157429  0.15702840
+
+    MEJOR MÉTODO para QGeoidCOL2023: Bicubica (R²adj = 0.20872527, σ0 = 0.2320 m)
+
+==============================================================================
+[3] INTERPOLACIÓN DE coords_EGM2008 EN 4210 PUNTOS (6 métodos)
+    IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
+    tiempo 38.3 s; variogramas ajustados: 1528 celdas
+    Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
+    Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
+    Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
+    Bicubica               aplicable en  4210 puntos, max|Σw-1| = 3.6e-15
+    IDW                    aplicable en  4210 puntos, max|Σw-1| = 7.8e-16
+    Kriging ordinario      aplicable en  4210 puntos, max|Σw-1| = 8.9e-16
+
+[4] MODELO PARAMÉTRICO Ec. (18) sobre l = h_ZT - H_ZT - N_ZT, P = I
+    l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)
+    Método                              dH              x1              x2   σ0 [m]        R²       R²adj
+    Vecino mas cercano       1.1367±0.0054  -0.0940±0.0027  -0.0262±0.0056   0.3517  0.367430  0.36712880
+    Lineal por triangulos    1.1378±0.0050  -0.0920±0.0025  -0.0272±0.0052   0.3260  0.395543  0.39525518
+    Bilineal                 1.1373±0.0050  -0.0919±0.0025  -0.0270±0.0052   0.3259  0.394728  0.39444042
+    Bicubica                 1.1394±0.0050  -0.0925±0.0025  -0.0272±0.0052   0.3267  0.396457  0.39617041  <-- MEJOR
+    IDW                      1.1332±0.0050  -0.0912±0.0025  -0.0269±0.0052   0.3259  0.391114  0.39082488
+    Kriging ordinario        1.1386±0.0050  -0.0921±0.0025  -0.0265±0.0052   0.3267  0.393805  0.39351689
+
+    MEJOR MÉTODO para coords_EGM2008: Bicubica (R²adj = 0.39617041, σ0 = 0.3267 m)
+    (Con el criterio de menor σ0 el mejor sería IDW.)
+
+==============================================================================
+Archivos en /projects/sandbox/modeloparametricogeodesia/resultados: coordenadas_zero_tide.csv, puntos_rechazados.csv, interpolacion_<malla>.csv, modelo_parametrico_<malla>.csv, resumen_modelos.csv, reporte.txt
+Tiempo total: 57.2 s

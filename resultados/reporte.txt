@@ -1,5 +1,5 @@
 ==============================================================================
-MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
+PUNTOS RED NACIONAL DE NIVELACIÓN FRENTE A MODELOS DE GEOIDE (ZERO TIDE)
 ==============================================================================
   Paper: Guimarães, G. N., Matos, A. C. O. C., Blitzkow, D. & Almeida, F. G. V. (2025). High-resolution regional gravity field modeling to connect the local vertical systems in South America to the IHRF. Earth, Planets and Space 77:98. https://doi.org/10.1186/s40623-025-02226-5
   Malla EGM2008 (coords_EGM2008.txt): ICGEM, GFZ Potsdam - https://icgem.gfz.de/calc_res/d533101e8204f4397361b8d33267c6ed173ceea602f93b06f39678a51579bc4c
@@ -111,7 +111,7 @@ MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
 ==============================================================================
 [3] INTERPOLACIÓN DE QGeoidCOL2023 EN 4210 PUNTOS (6 métodos)
     IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
-    tiempo 16.8 s; variogramas ajustados: 644 celdas
+    tiempo 16.6 s; variogramas ajustados: 644 celdas
     Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
     Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
     Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
@@ -119,7 +119,7 @@ MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
     IDW                    aplicable en  4210 puntos, max|Σw-1| = 8.9e-16
     Kriging ordinario      aplicable en  4210 puntos, max|Σw-1| = 8.9e-16
 
-[4] MODELO PARAMÉTRICO Ec. (18) sobre l = h_ZT - H_ZT - N_ZT, P = I
+[4] MODELO DE DESPLAZAMIENTO E INCLINACIÓN sobre l = h_ZT - H_ZT - N_ZT, P = I
     l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)
     Método                              dH              x1              x2   σ0 [m]        R²       R²adj
     Vecino mas cercano       0.2179±0.0061  -0.0457±0.0030  -0.0175±0.0063   0.3940  0.104443  0.10401741
@@ -134,7 +134,7 @@ MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
 ==============================================================================
 [3] INTERPOLACIÓN DE coords_EGM2008 EN 4210 PUNTOS (6 métodos)
     IDW p=2.0, k=16; kriging n=16, semiancho=6 nodos, variograma MCP (sph/exp/gau/cir)
-    tiempo 38.8 s; variogramas ajustados: 1528 celdas
+    tiempo 38.6 s; variogramas ajustados: 1528 celdas
     Vecino mas cercano     aplicable en  4210 puntos, max|Σw-1| = 0.0e+00
     Lineal por triangulos  aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
     Bilineal               aplicable en  4210 puntos, max|Σw-1| = 2.2e-16
@@ -142,7 +142,7 @@ MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
     IDW                    aplicable en  4210 puntos, max|Σw-1| = 7.8e-16
     Kriging ordinario      aplicable en  4210 puntos, max|Σw-1| = 7.8e-16
 
-[4] MODELO PARAMÉTRICO Ec. (18) sobre l = h_ZT - H_ZT - N_ZT, P = I
+[4] MODELO DE DESPLAZAMIENTO E INCLINACIÓN sobre l = h_ZT - H_ZT - N_ZT, P = I
     l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)
     Método                              dH              x1              x2   σ0 [m]        R²       R²adj
     Vecino mas cercano       1.1084±0.0054  -0.0936±0.0027  -0.0263±0.0056   0.3517  0.365835  0.36553362
@@ -156,5 +156,5 @@ MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)
     (Con el criterio de menor σ0 el mejor sería IDW.)
 
 ==============================================================================
-Archivos en /projects/sandbox/modeloparametricogeodesia/resultados: coordenadas_zero_tide.csv, puntos_rechazados.csv, interpolacion_<malla>.csv, modelo_parametrico_<malla>.csv, resumen_modelos.csv, reporte.txt
-Tiempo total: 58.6 s
+Archivos en /projects/sandbox/modeloparametricogeodesia/resultados: coordenadas_zero_tide (.csv y .xlsx), puntos_rechazados (.csv y .xlsx), resumen_modelos (.csv y .xlsx), interpolacion_<malla>.csv, modelo_parametrico_<malla>.csv, reporte.txt
+Tiempo total: 58.3 s

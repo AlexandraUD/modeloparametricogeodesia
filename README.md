@@ -15,7 +15,7 @@ El archivo "QGeoidCOL2023_3.txt" contiene una matriz de datos espaciales estruct
 python interfaz_modelo_parametrico.py
 ```
 
-Solo necesita Python; usa `tkinter`, que viene incluido. Debe estar en la misma carpeta que `modelo_parametrico_zero_tide.py`, que es el que hace los cálculos, así que da los mismos resultados que la línea de comandos. Tiene una pestaña por paso: guía y teoría, puntos, mallas, calcular, resultados (R²_adj y mejor método) y kriging. En esta última se puede ver el semivariograma o el covariograma de cualquier punto.
+Solo necesita Python; usa `tkinter`, que viene incluido. Debe estar en la misma carpeta que `modelo_parametrico_zero_tide.py`, que es el que hace los cálculos, así que da los mismos resultados que la línea de comandos. Tiene una pestaña por paso: guía y teoría, puntos (Puntos Red Nacional de Nivelación), mallas, mapa, calcular (con sugerencia del exponente p de IDW), resultados (R² ajustado y mejor método) y kriging ordinario (resumen de todos los semivariogramas o el de un punto). Los puntos apartados en la depuración se guardan en `resultados/puntos_rechazados.xlsx`.
 
 Fuentes:
 - Paper: Guimarães et al. (2025), *Earth, Planets and Space* 77:98, https://doi.org/10.1186/s40623-025-02226-5

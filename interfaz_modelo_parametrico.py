@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Interfaz gráfica del modelo paramétrico GNSS/nivelación en Zero Tide.
+Interfaz gráfica: Puntos Red Nacional de Nivelación frente a modelos de geoide.
 
 Solo usa Python estándar (tkinter). Los cálculos los hace
 modelo_parametrico_zero_tide.py (debe estar en la misma carpeta), así que la
@@ -45,7 +45,13 @@ AZUL = '#1f4e79'
 AZUL2 = '#2e75b6'
 FONDO = '#f3f6fa'
 BLANCO = '#ffffff'
-GRIS = '#5f6b7a'
+GRIS = '#1b2631'          # textos de ayuda: casi negro (antes gris)
+NEGRO = '#1b2631'
+FONDO_FORMULA = '#eef4fb'
+FUENTE_MATE = 'Cambria'   # fuente con buena tipografía matemática en Windows
+NOMBRE_PUNTOS = 'Puntos Red Nacional de Nivelación'
+NOMBRE_MODELO = {'18': 'Modelo de desplazamiento e inclinación',
+                 '23': 'Superficie de corrección de 4 parámetros'}
 VERDE = '#1e8449'
 VERDE_CLARO = '#d5f5e3'
 ROJO = '#c0392b'
@@ -57,27 +63,81 @@ SIS_TEXTO = {'zero_tide': 'Zero tide', 'mean_tide': 'Mean tide', 'tide_free': 'T
 TEXTO_SIS = {v: k for k, v in SIS_TEXTO.items()}
 
 
+# Las explicaciones usan una marcación mínima: $...$ = fórmula, _{..} = subíndice,
+# ^{..} = superíndice (ver pintar()).
 def explicar_h(s):
     return {None: 'Elija el sistema de mareas de h.',
-            'zero_tide': 'Ya está en zero tide: no se transforma.',
-            'tide_free': 'Se aplica la Ec. (3) del paper:  h_ZT = h_TF + 0.0602 − 0.1790 sin²φ − 0.0018 sin⁴φ',
-            'mean_tide': 'La corteza "mean tide" coincide con la "zero tide": no se transforma.'}[s]
+            'zero_tide': 'Ya está en zero tide: no se modifica.',
+            'tide_free': 'Se corrige así:   $h_{ZT} = h_{TF} + 0.0602 − 0.1790 sin²φ − 0.0018 sin⁴φ$',
+            'mean_tide': 'En mean tide la corteza es la misma que en zero tide: no se modifica.'}[s]
 
 
 def explicar_H(s):
     return {None: 'Elija el sistema de mareas de H.',
-            'zero_tide': 'Ya está en zero tide: no se transforma.',
-            'mean_tide': 'Se aplican las Ec. (1)-(2):  H_ZT = H_MT + ΔW/g,   ΔW/g ≈ −0.198 (3/2 sin²φ − 1/2)',
-            'tide_free': 'H_ZT = H_TF + Δh(Ec. 3) − 0.3·[−0.198 (3/2 sin²φ − 1/2)]   (derivada, poco habitual)'}[s]
+            'zero_tide': 'Ya está en zero tide: no se modifica.',
+            'mean_tide': 'Se corrige así:   $H_{ZT} = H_{MT} − 0.198 ( ³⁄₂ sin²φ − ½ )$',
+            'tide_free': 'Se corrige así:   $H_{ZT} = H_{TF} + Δh − ΔN$   (Δh y ΔN: correcciones de h y de N; '
+                         'caso poco habitual)'}[s]
 
 
 def explicar_N(s):
     return {None: 'Elija el sistema de mareas de la malla.',
-            'zero_tide': 'Ya está en zero tide: no se transforma.',
-            'tide_free': 'N_ZT = N_TF + 0.3·[−0.198 (3/2 sin²φ − 1/2)]   (derivada de la Ec. 2; Ekman 1989, k = 0.3). '
-                         'Se exporta la malla convertida a <malla>_zero_tide.txt.',
-            'mean_tide': 'N_ZT = N_MT + 0.198 (3/2 sin²φ − 1/2)   (derivada de la Ec. 2). '
-                         'Se exporta la malla convertida a <malla>_zero_tide.txt.'}[s]
+            'zero_tide': 'Ya está en zero tide: no se modifica.',
+            'tide_free': 'Se corrige así:   $N_{ZT} = N_{TF} − 0.0594 ( ³⁄₂ sin²φ − ½ )$   y se guarda una copia '
+                         'de la malla corregida (<malla>_zero_tide.txt).',
+            'mean_tide': 'Se corrige así:   $N_{ZT} = N_{MT} + 0.198 ( ³⁄₂ sin²φ − ½ )$   y se guarda una copia '
+                         'de la malla corregida (<malla>_zero_tide.txt).'}[s]
+
+
+def preparar_tags(txt, tam=11, tam_mate=13):
+    """Estilos de texto para pintar(): fórmula, subíndice y superíndice."""
+    txt.tag_configure('m', font=(FUENTE_MATE, tam_mate))
+    txt.tag_configure('sub', font=(FUENTE_MATE, max(tam_mate - 4, 8)), offset=-4)
+    txt.tag_configure('sup', font=(FUENTE_MATE, max(tam_mate - 4, 8)), offset=6)
+    txt.tag_configure('subt', font=('Segoe UI', max(tam - 3, 8)), offset=-3)
+
+
+def pintar(txt, s, *tags):
+    """Inserta s en un Text interpretando $...$ (fórmula), _{..} y ^{..}."""
+    i, mate, buf = 0, False, ''
+
+    def volcar():
+        if buf:
+            txt.insert('end', buf, tags + (('m',) if mate else ()))
+    while i < len(s):
+        c = s[i]
+        if c == '$':
+            volcar()
+            buf, mate = '', not mate
+            i += 1
+        elif c in '_^' and s[i + 1:i + 2] == '{':
+            volcar()
+            buf = ''
+            fin = s.index('}', i + 2)
+            estilo = ('sub' if c == '_' else 'sup') if mate else 'subt'
+            txt.insert('end', s[i + 2:fin], tags + (('m',) if mate else ()) + (estilo,))
+            i = fin + 1
+        else:
+            buf += c
+            i += 1
+    volcar()
+
+
+class CajaFormula(tk.Text):
+    """Recuadro de solo lectura para explicaciones con fórmulas bien escritas."""
+
+    def __init__(self, padre, alto=2, ancho=70):
+        super().__init__(padre, height=alto, width=ancho, wrap='word', bg=FONDO_FORMULA, fg=NEGRO,
+                         relief='flat', padx=10, pady=6, font=('Segoe UI', 11), cursor='arrow',
+                         highlightthickness=0)
+        preparar_tags(self)
+        self.configure(state='disabled')
+
+    def mostrar(self, s):
+        self.configure(state='normal')
+        self.delete('1.0', 'end')
+        pintar(self, s)
+        self.configure(state='disabled')
 
 
 def fuente_de(nombre):
@@ -161,7 +221,7 @@ def fmt_num(x):
 class App:
     def __init__(self, root):
         self.root = root
-        root.title('Modelo paramétrico GNSS/nivelación en Zero Tide — Guimarães et al. (2025)')
+        root.title('Alturas y geoide — Puntos Red Nacional de Nivelación')
         root.geometry('1280x840')
         root.minsize(1050, 700)
         root.configure(bg=FONDO)
@@ -185,7 +245,7 @@ class App:
         self._tab_kriging()
         self.estado = tk.StringVar(value='Listo. Lea la guía (pestaña 1) y siga los pasos en orden.')
         tk.Label(root, textvariable=self.estado, anchor='w', bg=AZUL, fg=BLANCO,
-                 font=('Segoe UI', 9), padx=10, pady=3).pack(fill='x', side='bottom')
+                 font=('Segoe UI', 10), padx=10, pady=4).pack(fill='x', side='bottom')
         self._precargar()
         self.root.after(100, self._leer_cola)
 
@@ -202,9 +262,12 @@ class App:
         st.configure('TLabel', background=FONDO)
         st.configure('Card.TLabel', background=BLANCO)
         st.configure('Paso.TLabel', background=FONDO, foreground=AZUL, font=('Segoe UI', 13, 'bold'))
-        st.configure('Ayuda.TLabel', background=FONDO, foreground=GRIS, font=('Segoe UI', 9))
-        st.configure('Formula.TLabel', background='#eaf1fb', foreground='#1b2631',
-                     font=('Consolas', 10), padding=6)
+        st.configure('Ayuda.TLabel', background=FONDO, foreground=NEGRO, font=('Segoe UI', 11))
+        st.configure('TLabel', background=FONDO, foreground=NEGRO, font=('Segoe UI', 11))
+        st.configure('TCheckbutton', background=FONDO, font=('Segoe UI', 10))
+        st.configure('TRadiobutton', background=FONDO, font=('Segoe UI', 10))
+        st.configure('Formula.TLabel', background=FONDO_FORMULA, foreground=NEGRO,
+                     font=('Consolas', 11), padding=6)
         st.configure('Mejor.TLabel', background=VERDE_CLARO, foreground=VERDE,
                      font=('Segoe UI', 11, 'bold'), padding=8)
         st.configure('TLabelframe', background=FONDO)
@@ -216,27 +279,23 @@ class App:
         st.configure('Accion.TButton', font=('Segoe UI', 11, 'bold'), foreground=BLANCO,
                      background=AZUL2, padding=(16, 8))
         st.map('Accion.TButton', background=[('active', AZUL), ('disabled', '#a9b7c6')])
-        st.configure('Treeview', rowheight=24, font=('Segoe UI', 9))
-        st.configure('Treeview.Heading', font=('Segoe UI', 9, 'bold'), foreground=AZUL)
+        st.configure('Treeview', rowheight=26, font=('Segoe UI', 10))
+        st.configure('Treeview.Heading', font=('Segoe UI', 10, 'bold'), foreground=AZUL)
+        st.configure('Mini.TButton', font=('Segoe UI', 10), padding=(6, 1))
         st.configure('green.Horizontal.TProgressbar', background=VERDE)
 
     def _encabezado(self):
         f = tk.Frame(self.root, bg=AZUL)
         f.pack(fill='x')
-        tk.Label(f, text='Modelo paramétrico GNSS/nivelación en Zero Tide', bg=AZUL, fg=BLANCO,
-                 font=('Segoe UI', 16, 'bold')).pack(anchor='w', padx=14, pady=(10, 0))
-        tk.Label(f, text='Sistema de mareas → zero tide  ·  depuración  ·  6 métodos de interpolación  ·  '
-                         'modelo de la Ec. (18)  ·  R² ajustado', bg=AZUL, fg='#d6e4f0',
-                 font=('Segoe UI', 10)).pack(anchor='w', padx=14)
-        enlace = tk.Label(f, text='Basado en: Guimarães et al. (2025), Earth, Planets and Space 77:98  '
-                                  '(clic para abrir el paper)', bg=AZUL, fg='#aed6f1',
-                          font=('Segoe UI', 9, 'underline'), cursor='hand2')
-        enlace.pack(anchor='w', padx=14, pady=(0, 8))
-        enlace.bind('<Button-1>', lambda e: webbrowser.open(URL_PAPER))
+        tk.Label(f, text='¿Qué tan bien describe el geoide a la Red Nacional de Nivelación?', bg=AZUL,
+                 fg=BLANCO, font=('Segoe UI', 17, 'bold')).pack(anchor='w', padx=16, pady=(12, 2))
+        tk.Label(f, text='Cargue los puntos y las mallas, revise el mapa y calcule: el programa lleva todo a '
+                         'zero tide, interpola el geoide con 6 métodos y le dice cuál funciona mejor.',
+                 bg=AZUL, fg='#e3edf7', font=('Segoe UI', 11)).pack(anchor='w', padx=16, pady=(0, 12))
 
     def _paso(self, padre, titulo, ayuda):
         ttk.Label(padre, text=titulo, style='Paso.TLabel').pack(anchor='w', padx=14, pady=(12, 0))
-        ttk.Label(padre, text=ayuda, style='Ayuda.TLabel', wraplength=1150,
+        ttk.Label(padre, text=ayuda, style='Ayuda.TLabel', wraplength=1180,
                   justify='left').pack(anchor='w', padx=14, pady=(2, 8))
 
     # ------------------------------------------------------------- 1. Guía
@@ -245,127 +304,201 @@ class App:
         self.nb.add(fr, text='  1 · Guía y teoría  ')
         cont = ttk.Frame(fr)
         cont.pack(fill='both', expand=True, padx=12, pady=10)
-        txt = tk.Text(cont, wrap='word', bg=BLANCO, relief='flat', padx=24, pady=18,
-                      font=('Segoe UI', 10), spacing1=2, spacing3=4)
+        txt = tk.Text(cont, wrap='word', bg=BLANCO, fg=NEGRO, relief='flat', padx=36, pady=22,
+                      font=('Segoe UI', 11), spacing1=2, spacing2=2, spacing3=4, cursor='arrow')
         sb = ttk.Scrollbar(cont, command=txt.yview)
         txt.configure(yscrollcommand=sb.set)
         sb.pack(side='right', fill='y')
         txt.pack(side='left', fill='both', expand=True)
-        txt.tag_configure('h1', font=('Segoe UI', 15, 'bold'), foreground=AZUL, spacing1=10, spacing3=6)
-        txt.tag_configure('h2', font=('Segoe UI', 12, 'bold'), foreground=AZUL2, spacing1=12, spacing3=4)
-        txt.tag_configure('f', font=('Consolas', 10), background='#eaf1fb', lmargin1=30, lmargin2=30)
-        txt.tag_configure('nota', foreground=GRIS, font=('Segoe UI', 9, 'italic'))
-        txt.tag_configure('b', font=('Segoe UI', 10, 'bold'))
-        txt.tag_configure('lista', lmargin1=18, lmargin2=34)
+        txt.tag_configure('h1', font=('Segoe UI', 18, 'bold'), foreground=AZUL, spacing3=8)
+        txt.tag_configure('h2', font=('Segoe UI', 14, 'bold'), foreground=AZUL, spacing1=22, spacing3=6)
+        txt.tag_configure('intro', font=('Segoe UI', 12), spacing3=6)
+        txt.tag_configure('b', font=('Segoe UI', 11, 'bold'))
+        txt.tag_configure('li', lmargin1=26, lmargin2=44)
+        txt.tag_configure('card', background='#f4f7fb', lmargin1=24, lmargin2=24, rmargin=24)
+        txt.tag_configure('ct', font=('Segoe UI', 12, 'bold'), foreground=AZUL2, spacing1=10)
+        txt.tag_configure('fb', justify='center', background=FONDO_FORMULA, spacing1=10, spacing3=10,
+                          lmargin1=60, lmargin2=60, rmargin=60)
+        txt.tag_configure('def', lmargin1=60, lmargin2=110)
+        txt.tag_configure('ref', lmargin1=24, lmargin2=44, spacing3=8)
+        preparar_tags(txt, 11, 15)
 
-        def link(texto, url):
+        def link(texto, url, *tags):
             tag = f'link{len(txt.tag_names())}'
             txt.tag_configure(tag, foreground=AZUL2, underline=True)
             txt.tag_bind(tag, '<Button-1>', lambda e: webbrowser.open(url))
             txt.tag_bind(tag, '<Enter>', lambda e: txt.configure(cursor='hand2'))
-            txt.tag_bind(tag, '<Leave>', lambda e: txt.configure(cursor=''))
-            txt.insert('end', texto, tag)
+            txt.tag_bind(tag, '<Leave>', lambda e: txt.configure(cursor='arrow'))
+            txt.insert('end', texto, tags + (tag,))
 
-        I = lambda t, *tags: txt.insert('end', t, tags)
-        I('¿Qué hace este programa?\n', 'h1')
-        I('Compara h − H con la ondulación del geoide N en puntos GNSS/nivelación y estima el '
-          'desplazamiento del datum vertical local con el modelo paramétrico de ')
-        link('Guimarães et al. (2025)', URL_PAPER)
-        I('. Todo se lleva primero al mismo sistema de mareas (zero tide), como exige el paper.\n')
-        I('Pasos (una pestaña por paso)\n', 'h2')
-        for t in ('2 · Puntos: elija el archivo de puntos, diga qué columna es latitud, longitud, h y H, '
-                  'y en qué sistema de mareas están h y H.',
-                  '3 · Mallas: agregue las mallas de N (geoide/cuasigeoide) y diga su sistema de mareas.',
-                  '4 · Mapa: vea dónde están los puntos y qué zona cubre cada malla (con N en colores).',
-                  '5 · Calcular: revise los parámetros y presione «Ejecutar cálculo».',
-                  '6 · Resultados: tabla de los 6 métodos, R² ajustado y mejor método; puntos rechazados.',
-                  '7 · Kriging: semivariograma o covariograma del kriging en cualquier punto.'):
-            I('  •  ' + t + '\n', 'lista')
+        P = lambda s, *t: pintar(txt, s + '\n', *t)
+        H2 = lambda s: txt.insert('end', s + '\n', ('h2',))
+        F = lambda s: pintar(txt, '$' + s + '$\n', 'fb')
 
-        I('Puntos y mallas: no son lo mismo\n', 'h2')
-        I('Puntos (coords_QGEOID2023.txt): ', 'b')
-        I('son mediciones reales en campo, cada una con latitud φ, longitud λ, altura elipsoidal h '
-          '(GNSS) y altura sobre el nivel del mar H (nivelación). Son los lugares donde se calcula el modelo.\n')
-        I('Mallas (QGeoidCOL2023.txt, coords_EGM2008.txt): ', 'b')
-        I('son modelos del geoide: una cuadrícula regular de nodos (cada 5′ o 2′) con el valor de N. '
-          'Los puntos casi nunca caen sobre un nodo, por eso N se INTERPOLA desde los nodos de la malla '
-          'hasta cada punto. Así, para cada punto se obtiene:\n')
-        I('  l = h − H − N        (si todo fuera perfecto, l sería constante = desplazamiento del datum)\n', 'f')
-        I('El nombre de los archivos no importa (por ejemplo, EGM2008.txt o coords_EGM2008.txt): lo que '
-          'cuenta es cargarlos en el paso correcto, los puntos en «2 · Puntos» y las mallas en «3 · Mallas». '
-          'En «4 · Mapa» puede comprobar dónde está cada archivo antes de calcular.\n', 'nota')
+        def LI(*items):
+            for it in items:
+                pintar(txt, '•   ' + it + '\n', 'li')
 
-        I('1. Sistema de mareas → zero tide (paper, sección 2.4)\n', 'h2')
-        I('La marea permanente deforma la Tierra y el geoide. Hay tres convenciones: tide free, mean tide '
-          'y zero tide. El paper trabaja en zero tide. Lo que ya está en zero tide NO se transforma.\n')
-        I('  Ec. (1)  H_ZT = H_MT + ΔW_ZT / g\n'
-          '  Ec. (2)  ΔW_ZT / g ≈ −0.198 (3/2 sin²φ − 1/2)                   [m]\n'
-          '  Ec. (3)  h_ZT = h_TF + 0.0602 − 0.1790 sin²φ − 0.0018 sin⁴φ     [m]\n', 'f')
-        I('Para las mallas de N (no está escrito en el paper; se deduce de la Ec. 2, Ekman 1989, k = 0.3):\n')
-        I('  N_ZT = N_TF + 0.3 · [−0.198 (3/2 sin²φ − 1/2)]      N_ZT = N_MT + 0.198 (3/2 sin²φ − 1/2)\n', 'f')
-        I('En Colombia, pasar EGM2008 de tide free a zero tide le suma a N entre 2.5 y 3.0 cm.\n', 'nota')
+        def CARD(titulo, *parrafos):
+            txt.insert('end', titulo + '\n', ('card', 'ct'))
+            for p in parrafos:
+                pintar(txt, p + '\n', 'card')
 
-        I('Depuración de los puntos\n', 'h2')
-        for t in ('R1 dato vacío o no numérico      R2 coordenada fuera de rango      R3 id o coordenadas duplicadas',
-                  'R4 h = 0 con H > 1 m (altura elipsoidal faltante)      R5 |h − H| > 150 m (no plausible)',
-                  'R6 error grosero: |l − mediana(l)| > umbral · σ robusta (σ = 1.4826·MAD; l con interpolación bilineal)',
-                  'R7 punto fuera de la cobertura de la malla'):
-            I('  •  ' + t + '\n', 'lista')
-        I('Los rechazados se listan con su motivo en puntos_rechazados.csv.\n', 'nota')
+        def DEF(simbolo, texto):
+            pintar(txt, f'${simbolo}$', 'def')
+            pintar(txt, '   ' + texto + '\n', 'def')
 
-        I('2. Interpolación de N: 6 métodos (como appQGeoidCOL2023_0.m)\n', 'h2')
-        I('Todos calculan N = Σ wᵢ Nᵢ con Σ wᵢ = 1; ninguno extrapola fuera de la malla.\n')
-        for t in ('Vecino más cercano: el nodo más próximo (w = 1).',
-                  'Lineal por triángulos: la celda se parte por la diagonal SO–NE; pesos baricéntricos (3 nodos).',
-                  'Bilineal: los 4 nodos de la celda; w = (1−u)(1−v), u(1−v), uv, (1−u)v.',
-                  'Bicúbica: convolución cúbica de Keys (a = −0.5) con 4×4 = 16 nodos.',
-                  'IDW: k nodos más cercanos, wᵢ ∝ 1/dᵢᵖ (distancias en Origen-Nacional, EPSG:9377).',
-                  'Kriging ordinario: semivariograma local ajustado por mínimos cuadrados ponderados '
-                  '(esférico, exponencial, gaussiano o circular) y sistema de kriging con n vecinos.'):
-            I('  •  ' + t + '\n', 'lista')
+        txt.insert('end', 'Guía rápida\n', ('h1',))
+        P('Este programa compara las alturas de los ' + NOMBRE_PUNTOS + ' con modelos del geoide '
+          'y responde dos preguntas: ¿cuánto está desplazado el nivel de referencia de las alturas '
+          'respecto al geoide? y ¿qué forma de interpolar el geoide da el mejor resultado?', 'intro')
 
-        I('Semivariograma y covariograma (kriging)\n', 'h2')
-        I('  γ(h) = ½ · promedio[ (N(x) − N(x+h))² ]          C(h) = C(0) − γ(h),   C(0) = C₀ + C\n'
-          '  Esférico: γ = C₀ + C·(1.5 h/a − 0.5 (h/a)³)        Exponencial: γ = C₀ + C·(1 − e^(−h/a))\n'
-          '  Gaussiano: γ = C₀ + C·(1 − e^(−(h/a)²))             C₀ = pepita, C = meseta parcial, a = rango\n', 'f')
-        I('Se elige el modelo con menor suma de cuadrados ponderada por el número de pares de cada rezago. '
-          'Luego se resuelve  [Γ 1; 1ᵀ 0]·[λ; μ] = [γ₀; 1]  y la varianza de kriging es σ²_KO = λᵀγ₀ + μ.\n')
+        H2('Los pasos')
+        LI('2 · Puntos — cargue el archivo de puntos y diga qué es cada columna.',
+           '3 · Mallas — cargue los modelos del geoide (QGeoidCOL2023, EGM2008…).',
+           '4 · Mapa — compruebe dónde quedan los puntos y qué zona cubre cada malla.',
+           '5 · Calcular — revise los parámetros y presione «Ejecutar cálculo».',
+           '6 · Resultados — vea el ajuste de cada método y cuál es el mejor.',
+           '7 · Kriging ordinario — explore el semivariograma usado por el kriging.')
 
-        I('3. Modelo paramétrico, Ec. (18) del paper\n', 'h2')
-        I('  l_P = h_P − H_P − N_P = δH + x₁ (φ_P − φ₀) + x₂ (λ_P − λ₀) cos φ_P\n'
-          '  x̂ = (Aᵀ P A)⁻¹ Aᵀ P l,    P = I         (Ec. 19–20)\n', 'f')
-        I('δH es el desplazamiento medio del datum vertical; x₁ y x₂ son las inclinaciones norte–sur y '
-          'este–oeste; (φ₀, λ₀) es la posición media de los puntos. También está disponible la superficie '
-          'de 4 parámetros de la Ec. (23):  x₀ + x₁ cosφ cosλ + x₂ cosφ sinλ + x₃ sinφ.\n')
-        I('4. Coeficiente de determinación ajustado\n', 'h2')
-        I('  R² = 1 − SSE/SST        R²_adj = 1 − (1 − R²)·(n − 1)/(n − u)       (u = nº de parámetros)\n', 'f')
-        I('Se ajusta el modelo con el N de cada método; el método con MAYOR R²_adj es el mejor. Los 6 '
-          'métodos se comparan con los mismos puntos. Como dato adicional se muestra σ₀ (el paper reporta '
-          'desviaciones estándar).\n')
+        H2('Los datos')
+        CARD(NOMBRE_PUNTOS + '   (coords_QGEOID2023.txt · IGAC)',
+             'Puntos medidos en campo. Cada uno tiene su posición (latitud φ y longitud λ) y dos alturas:',
+             '      h  altura elipsoidal: altura sobre el elipsoide, la superficie matemática de referencia.',
+             '      H  altura sobre el nivel del mar: la que se obtiene con la nivelación.')
+        CARD('QGeoidCOL2023   (IGAC)',
+             'Modelo del geoide (cuasigeoide) de Colombia calculado por el IGAC. Es una malla: una cuadrícula '
+             'regular de nodos cada 5′ (unos 9 km) que cubre el país y sus mares. En cada nodo da la ondulación '
+             'N, es decir, la separación entre el elipsoide y el geoide.')
+        CARD('EGM2008   (ICGEM)',
+             'Modelo global del geoide (Earth Gravitational Model 2008), calculado con datos de gravedad '
+             'terrestres y satelitales para todo el planeta. Esta malla se generó en el servicio ICGEM para la '
+             'región de Colombia, con nodos cada 2′ (unos 3.7 km). Su encabezado indica que viene en tide free.')
+        P('')
+        P('Puntos y mallas no son lo mismo: los puntos son mediciones; las mallas son modelos. Como un punto '
+          'casi nunca cae justo sobre un nodo, el valor de N en cada punto se interpola a partir de los nodos '
+          'vecinos. El nombre de los archivos no importa: lo que cuenta es cargar los puntos en «2 · Puntos» y '
+          'las mallas en «3 · Mallas».')
 
-        I('Fuentes de los datos y referencia\n', 'h2')
-        I('Paper:  ', 'b')
-        I(CITA + '  ')
-        link(URL_PAPER, URL_PAPER)
-        I('\n')
-        I('Malla EGM2008 (coords_EGM2008.txt):  ', 'b')
-        I('ICGEM – GFZ Potsdam, ')
-        link(URL_ICGEM, URL_ICGEM)
-        I('\n')
-        I('Malla QGeoidCOL2023 y puntos coords_QGEOID2023:  ', 'b')
-        I('IGAC – Red Geodésica Nacional, ')
-        link(URL_IGAC, URL_IGAC)
-        I('\n')
+        H2('La discrepancia l')
+        P('Si las alturas y el geoide fueran perfectos, se cumpliría h = H + N. En la práctica queda una '
+          'diferencia, la discrepancia l:')
+        F('l = h − H − N')
+        P('Si l fuera igual en todos los puntos, el nivel de referencia de las alturas estaría solo desplazado. '
+          'Si cambia de un lugar a otro, hay inclinaciones o errores en la red o en el modelo.')
+
+        H2('1 · Todo en el mismo sistema de mareas')
+        P('La atracción del Sol y de la Luna deforma la Tierra de manera permanente. Según cómo se trate ese '
+          'efecto existen tres convenciones: tide free, mean tide y zero tide. Para comparar h, H y N deben '
+          'estar en la misma; aquí se usa zero tide. Usted indica en qué sistema viene cada dato y el programa '
+          'corrige solo lo que haga falta (lo que ya está en zero tide no se toca):')
+        F('H_{ZT} = H_{MT} − 0.198 ( ³⁄₂ sin²φ − ½ )')
+        F('h_{ZT} = h_{TF} + 0.0602 − 0.1790 sin²φ − 0.0018 sin⁴φ')
+        F('N_{ZT} = N_{TF} − 0.0594 ( ³⁄₂ sin²φ − ½ )')
+        P('Los subíndices indican el sistema: ZT zero tide, MT mean tide, TF tide free. Son correcciones de '
+          'pocos centímetros; por ejemplo, EGM2008 sube entre 2.5 y 3 cm en Colombia al pasarlo a zero tide.')
+
+        H2('2 · Depuración de los datos')
+        P('Antes de calcular se revisa cada punto y se apartan los que tienen errores evidentes. Ninguno se '
+          'descarta en silencio: todos quedan en el archivo de Excel puntos_rechazados.xlsx, dentro de la '
+          'carpeta de resultados, con el motivo. También se ven en la pestaña «6 · Resultados». Se aparta un '
+          'punto cuando:')
+        LI('le falta un dato o un valor no es un número;',
+           'su latitud o longitud son imposibles;',
+           'está repetido (mismo identificador o mismas coordenadas);',
+           'su altura elipsoidal vale cero (dato faltante);',
+           'h − H es mayor de 150 m (ningún geoide se separa tanto);',
+           'su discrepancia l se aleja demasiado de la del resto de puntos (error grueso: más de 5 veces la '
+           'dispersión típica; el umbral se puede cambiar en «5 · Calcular»);',
+           'queda fuera de la zona que cubre alguna malla.')
+
+        H2('3 · Interpolación con 6 métodos')
+        P('Para obtener N en cada punto se prueban seis formas de interpolar la malla:')
+        LI('Vecino más cercano — toma el valor del nodo más próximo.',
+           'Lineal por triángulos — divide cada celda en dos triángulos y usa un plano.',
+           'Bilineal — combina los 4 nodos de la celda según la cercanía.',
+           'Bicúbica — usa 16 nodos y una curva suave.',
+           'IDW (inverso de la distancia) — promedia los nodos cercanos dando más peso a los más próximos; '
+           'el exponente p controla cuánto más. En «5 · Calcular» el programa puede sugerir el mejor p.',
+           'Kriging ordinario — calcula los pesos a partir de cómo cambia N con la distancia (ver abajo).')
+
+        H2('Kriging ordinario y semivariograma')
+        P('El kriging primero estudia cómo varía N con la distancia. Para eso arma el semivariograma: compara '
+          'pares de nodos y mide cuánto difieren según lo separados que estén; normalmente, cuanto más lejos, '
+          'más diferentes. El covariograma muestra lo mismo al revés: cuánto se parecen.')
+        P('A los puntos experimentales del semivariograma se les ajustan cuatro curvas (esférica, exponencial, '
+          'gaussiana y circular) y se elige la de menor SSRw.')
+        CARD('¿Qué es SSRw?',
+             'Es la suma de cuadrados ponderada de los residuos: mide qué tan lejos queda la curva de los puntos '
+             'experimentales. Cada diferencia se eleva al cuadrado y se multiplica por el número de pares de '
+             'nodos de ese punto, porque un punto calculado con más pares es más confiable. Menor SSRw = la curva '
+             'sigue mejor a los datos.')
+        P('')
+        P('Como el geoide cambia mucho de una región a otra, el semivariograma se ajusta en una ventana local '
+          'alrededor de cada punto. Los puntos que caen en la misma celda de la malla comparten ventana, así '
+          'que se ajusta uno por celda (cientos, no miles). En «7 · Kriging ordinario» puede ver un resumen de '
+          'todos o el de un punto en particular.')
+
+        H2('4 · El modelo de ajuste')
+        P('Con la discrepancia l de todos los puntos se ajusta, por mínimos cuadrados, una superficie sencilla '
+          'que recoge su parte sistemática. Hay dos opciones:')
+        CARD('Modelo de desplazamiento e inclinación   (recomendado)',
+             'Supone que la diferencia es un desplazamiento vertical común más una inclinación suave en sentido '
+             'norte–sur y otra en sentido este–oeste:')
+        F('l = δH + x_{1} (φ − φ_{0}) + x_{2} (λ − λ_{0}) cos φ')
+        DEF('δH', 'desplazamiento vertical medio (m): cuánto está corrido, en promedio, el nivel de referencia '
+                  'de las alturas respecto al geoide.')
+        DEF('x_{1}', 'inclinación norte–sur (m por grado de latitud).')
+        DEF('x_{2}', 'inclinación este–oeste (m por grado de longitud).')
+        DEF('φ_{0}, λ_{0}', 'latitud y longitud medias de los puntos (el centro de la red).')
+        P('')
+        CARD('Superficie de corrección de 4 parámetros',
+             'Una superficie algo más flexible, habitual para ajustar un geoide a puntos nivelados:')
+        F('l = x_{0} + x_{1} cos φ cos λ + x_{2} cos φ sin λ + x_{3} sin φ')
+        DEF('x_{0} … x_{3}', 'coeficientes en metros que, juntos, describen la superficie.')
+        P('')
+        P('En «6 · Resultados» verá cada parámetro con su desviación estándar (±), σ₀ (cuánto se separan en '
+          'promedio los puntos de la superficie ajustada, en metros), R² y R² ajustado.')
+
+        H2('5 · ¿Cuál método es el mejor? El R² ajustado')
+        P('R² indica qué parte de la variación de la discrepancia l explica el modelo: 0 es nada y 1 es todo. '
+          'El R² ajustado lo corrige según el número de parámetros, para no favorecer a los modelos con más '
+          'coeficientes:')
+        F('R²_{aj} = 1 − (1 − R²) · (n − 1) ⁄ (n − u)')
+        P('n es el número de puntos y u el número de parámetros (3 o 4). El modelo se ajusta seis veces, una '
+          'con el N de cada método y siempre con los mismos puntos: el método con mayor R² ajustado es el mejor.')
+
+        H2('Archivos que se guardan')
+        LI('coordenadas_zero_tide.xlsx — los puntos aceptados con sus alturas en zero tide.',
+           'puntos_rechazados.xlsx — los puntos apartados y el motivo.',
+           'resumen_modelos.xlsx — parámetros, σ₀, R² y R² ajustado de cada método y malla.',
+           'interpolacion_<malla>.csv — N, l y residuos de los 6 métodos en cada punto.',
+           'reporte.txt — la bitácora completa del cálculo.')
+
+        H2('Referencias')
+        P('Las correcciones de marea y los modelos de ajuste siguen a:')
+        txt.insert('end', CITA + '  ', ('ref',))
+        link(URL_PAPER, URL_PAPER, 'ref')
+        txt.insert('end', '\n')
+        txt.insert('end', 'EGM2008: Pavlis, N. K., Holmes, S. A., Kenyon, S. C. & Factor, J. K. (2012). The development '
+                          'and evaluation of the Earth Gravitational Model 2008 (EGM2008). Journal of Geophysical '
+                          'Research, 117, B04406. Malla generada en ICGEM (GFZ Potsdam): ', ('ref',))
+        link(URL_ICGEM, URL_ICGEM, 'ref')
+        txt.insert('end', '\n')
+        txt.insert('end', 'QGeoidCOL2023 y ' + NOMBRE_PUNTOS + ': Instituto Geográfico Agustín Codazzi '
+                          '(IGAC), Red Geodésica Nacional: ', ('ref',))
+        link(URL_IGAC, URL_IGAC, 'ref')
+        txt.insert('end', '\n')
         txt.configure(state='disabled')
 
     # ------------------------------------------------------------ 2. Puntos
     def _tab_puntos(self):
         fr = ttk.Frame(self.nb)
         self.nb.add(fr, text='  2 · Puntos  ')
-        self._paso(fr, 'Paso 1 — Archivo de puntos GNSS/nivelación',
-                   'Son los puntos medidos (ej. coords_QGEOID2023.txt del IGAC). En ellos se interpola N y se '
-                   'calcula l = h − H − N. Formatos: texto con encabezado separado por «;», «,», tabulación '
-                   'o espacios.')
+        self._paso(fr, 'Paso 1 — ' + NOMBRE_PUNTOS,
+                   'Son los puntos medidos (por ejemplo, coords_QGEOID2023.txt del IGAC). En ellos se interpola N '
+                   'y se calcula la discrepancia l. Formatos: texto con encabezado separado por «;», «,», '
+                   'tabulación o espacios.')
         f1 = ttk.Frame(fr)
         f1.pack(fill='x', padx=14)
         self.v_puntos = tk.StringVar()
@@ -389,7 +522,7 @@ class App:
         col.pack(side='left', fill='both', expand=True, padx=(0, 8))
         self.cb_col = {}
         textos = [('id', 'Identificador (opcional)'), ('lat', 'Latitud φ [grados]'),
-                  ('lon', 'Longitud λ [grados]'), ('h', 'Altura elipsoidal h [m] (GNSS)'),
+                  ('lon', 'Longitud λ [grados]'), ('h', 'Altura elipsoidal h [m]'),
                   ('H', 'Altura sobre el nivel del mar H [m] (nivelación)')]
         for r, (k, t) in enumerate(textos):
             ttk.Label(col, text=t).grid(row=r, column=0, sticky='w', padx=8, pady=3)
@@ -404,8 +537,10 @@ class App:
         mar.pack(side='left', fill='both', expand=True)
         self.cb_sis_h = ttk.Combobox(mar, state='readonly', width=16, values=list(SIS_TEXTO.values()))
         self.cb_sis_H = ttk.Combobox(mar, state='readonly', width=16, values=list(SIS_TEXTO.values()))
-        self.lbl_h = ttk.Label(mar, text=explicar_h(None), style='Formula.TLabel', wraplength=560)
-        self.lbl_H = ttk.Label(mar, text=explicar_H(None), style='Formula.TLabel', wraplength=560)
+        self.lbl_h = CajaFormula(mar, alto=2, ancho=64)
+        self.lbl_H = CajaFormula(mar, alto=2, ancho=64)
+        self.lbl_h.mostrar(explicar_h(None))
+        self.lbl_H.mostrar(explicar_H(None))
         ttk.Label(mar, text='h (elipsoidal):').grid(row=0, column=0, sticky='w', padx=8, pady=(6, 2))
         self.cb_sis_h.grid(row=0, column=1, sticky='w', pady=(6, 2))
         self.lbl_h.grid(row=1, column=0, columnspan=2, sticky='we', padx=8)
@@ -416,16 +551,16 @@ class App:
                             'h en tide free y H en mean tide.', style='Ayuda.TLabel', wraplength=560
                   ).grid(row=4, column=0, columnspan=2, sticky='w', padx=8, pady=6)
         self.cb_sis_h.bind('<<ComboboxSelected>>',
-                           lambda e: self.lbl_h.configure(text=explicar_h(self._sis(self.cb_sis_h))))
+                           lambda e: self.lbl_h.mostrar(explicar_h(self._sis(self.cb_sis_h))))
         self.cb_sis_H.bind('<<ComboboxSelected>>',
-                           lambda e: self.lbl_H.configure(text=explicar_H(self._sis(self.cb_sis_H))))
+                           lambda e: self.lbl_H.mostrar(explicar_H(self._sis(self.cb_sis_H))))
 
     @staticmethod
     def _sis(cb):
         return TEXTO_SIS.get(cb.get())
 
     def _elegir_puntos(self):
-        r = filedialog.askopenfilename(title='Archivo de puntos GNSS/nivelación', initialdir=AQUI,
+        r = filedialog.askopenfilename(title='Archivo de ' + NOMBRE_PUNTOS, initialdir=AQUI,
                                        filetypes=[('Texto / CSV', '*.txt *.csv *.dat'), ('Todos', '*.*')])
         if r:
             self.v_puntos.set(r)
@@ -466,11 +601,11 @@ class App:
     def _tab_mallas(self):
         fr = ttk.Frame(self.nb)
         self.nb.add(fr, text='  3 · Mallas  ')
-        self._paso(fr, 'Paso 2 — Mallas de N (geoide / cuasigeoide)',
-                   'Una malla es un MODELO del geoide: una cuadrícula regular de nodos (lat, lon, N). No son '
-                   'puntos medidos. De cada malla se interpola N en los puntos del paso 1 con 6 métodos, y cada '
-                   'malla se analiza por separado. Formatos: «lat lon N» sin encabezado (ej. QGeoidCOL2023.txt '
-                   'del IGAC) o archivo ICGEM con encabezado (ej. coords_EGM2008.txt).')
+        self._paso(fr, 'Paso 2 — Mallas del geoide (N)',
+                   'Una malla es un modelo del geoide: una cuadrícula regular de nodos con el valor de N. No son '
+                   'puntos medidos. De cada malla se interpola N en los ' + NOMBRE_PUNTOS + ' con 6 métodos, y '
+                   'cada malla se analiza por separado. Formatos: «lat lon N» sin encabezado (como QGeoidCOL2023 '
+                   'del IGAC) o archivo de ICGEM con encabezado (como EGM2008).')
         caja = ttk.Frame(fr)
         caja.pack(fill='both', expand=True, padx=14)
         cols = ('archivo', 'formato', 'cabecera', 'sistema', 'fuente')
@@ -494,12 +629,11 @@ class App:
         self.cb_sis_malla = ttk.Combobox(sel, state='readonly', width=16, values=list(SIS_TEXTO.values()))
         self.cb_sis_malla.grid(row=0, column=1, sticky='w', padx=8)
         self.cb_sis_malla.bind('<<ComboboxSelected>>', self._cambiar_sis_malla)
-        self.lbl_N = ttk.Label(sel, text=explicar_N(None), style='Formula.TLabel', wraplength=1100)
+        self.lbl_N = CajaFormula(sel, alto=2, ancho=120)
+        self.lbl_N.mostrar(explicar_N(None))
         self.lbl_N.grid(row=1, column=0, columnspan=2, sticky='we', padx=8, pady=(0, 8))
-        ttk.Label(caja, text='Ojo: el sistema de mareas lo decide usted. Si el encabezado del archivo dice otra '
-                             'cosa, el programa lo avisa en la bitácora pero usa lo que usted eligió. Para '
-                             'EGM2008 descargado de ICGEM el encabezado indica «tide_free».',
-                  style='Ayuda.TLabel', wraplength=1150).pack(anchor='w', pady=4)
+        ttk.Label(caja, text='El sistema de mareas lo elige el usuario.',
+                  style='Ayuda.TLabel').pack(anchor='w', pady=4)
 
     def _agregar_malla(self, ruta=None, sistema=None):
         if ruta is None:
@@ -544,7 +678,7 @@ class App:
         m = self.mallas[int(s[0])]
         self.lbl_malla_sel.configure(text=f'{os.path.basename(m["ruta"])}:')
         self.cb_sis_malla.set(SIS_TEXTO.get(m['sistema'], ''))
-        self.lbl_N.configure(text=explicar_N(m['sistema']))
+        self.lbl_N.mostrar(explicar_N(m['sistema']))
 
     def _cambiar_sis_malla(self, _=None):
         s = self.tv_mallas.selection()
@@ -555,7 +689,7 @@ class App:
         self.mallas[k]['sistema'] = self._sis(self.cb_sis_malla)
         self._refrescar_mallas()
         self.tv_mallas.selection_set(str(k))
-        self.lbl_N.configure(text=explicar_N(self.mallas[k]['sistema']))
+        self.lbl_N.mostrar(explicar_N(self.mallas[k]['sistema']))
 
     # -------------------------------------------------------------- 4. Mapa
     def _tab_mapa(self):
@@ -567,9 +701,9 @@ class App:
         fr = ttk.Frame(self.nb)
         self.nb.add(fr, text='  4 · Mapa  ')
         self._paso(fr, 'Mapa — dónde están los puntos y qué zona cubre cada malla',
-                   'Fondo de color: N de la malla elegida (valores tal como vienen en el archivo). Rectángulo: '
-                   'cobertura de cada malla cargada. Puntos: ubicaciones del archivo de puntos (después del '
-                   'cálculo, los rechazados aparecen en rojo). Pase el ratón sobre el mapa para leer lat, lon y N.')
+                   'Colores: N de la malla elegida, tal como viene en el archivo. Rectángulos punteados: zona que '
+                   'cubre cada malla. Puntos negros: ' + NOMBRE_PUNTOS + ' (después del cálculo, los apartados en '
+                   'la depuración aparecen como × rojas). Pase el ratón sobre el mapa para leer lat, lon y N.')
         ctrl = ttk.Frame(fr)
         ctrl.pack(fill='x', padx=14)
         ttk.Label(ctrl, text='Fondo (malla):').pack(side='left')
@@ -578,7 +712,7 @@ class App:
         self.cb_mapa_fondo.bind('<<ComboboxSelected>>', lambda e: self._dibujar_mapa())
         self.v_m = {k: tk.BooleanVar(value=v) for k, v in
                     (('puntos', True), ('cobertura', True), ('curvas', True), ('nodos', False))}
-        for k, t in (('puntos', 'Puntos GNSS/nivelación'), ('cobertura', 'Cobertura de las mallas'),
+        for k, t in (('puntos', NOMBRE_PUNTOS), ('cobertura', 'Cobertura de las mallas'),
                      ('curvas', 'Curvas de nivel'), ('nodos', 'Nodos de la malla')):
             ttk.Checkbutton(ctrl, text=t, variable=self.v_m[k],
                             command=self._dibujar_mapa).pack(side='left', padx=4)
@@ -588,8 +722,7 @@ class App:
         self.cb_mapa_paso.pack(side='left', padx=2)
         self.cb_mapa_paso.bind('<<ComboboxSelected>>', lambda e: self._dibujar_mapa())
         ttk.Label(ctrl, text='m').pack(side='left')
-        ttk.Button(ctrl, text='Guardar mapa (.eps)', command=self._guardar_mapa).pack(side='right')
-        ttk.Button(ctrl, text='Actualizar', command=self._dibujar_mapa).pack(side='right', padx=6)
+        ttk.Button(ctrl, text='Actualizar', command=self._dibujar_mapa).pack(side='right')
 
         cuerpo = ttk.Frame(fr)
         cuerpo.pack(fill='both', expand=True, padx=14, pady=8)
@@ -603,7 +736,7 @@ class App:
         der.pack(side='left', fill='y', padx=(10, 0))
         self.lbl_cursor = ttk.Label(der, text='lat —   lon —   N —', style='Formula.TLabel', width=40)
         self.lbl_cursor.pack(fill='x')
-        self.txt_mapa = tk.Text(der, width=46, font=('Consolas', 9), bg=BLANCO, relief='flat',
+        self.txt_mapa = tk.Text(der, width=46, font=('Consolas', 10), bg=BLANCO, relief='flat',
                                 padx=10, pady=8, wrap='word')
         self.txt_mapa.pack(fill='both', expand=True, pady=(8, 0))
 
@@ -760,7 +893,7 @@ class App:
                     if segs:                         # etiqueta en el segmento central
                         x1, y1, x2, y2 = segs[len(segs) // 2]
                         cv.create_text(X((x1 + x2) / 2), Y((y1 + y2) / 2), text=f'{nivel:g}',
-                                       font=('Segoe UI', 7), fill='#111111')
+                                       font=('Segoe UI', 8), fill='#111111')
             # nodos (submuestreados si son muchos)
             if self.v_m['nodos'].get():
                 s = max(1, math.ceil(math.sqrt(nl * nlo / 30000)))
@@ -782,8 +915,8 @@ class App:
                 if zmin <= v <= zmax:
                     yy = by1 - (v - zmin) / (zmax - zmin) * (by1 - by0)
                     cv.create_line(bx + 16, yy, bx + 20, yy, fill='#555555')
-                    cv.create_text(bx + 23, yy, text=f'{v:g}', anchor='w', font=('Segoe UI', 8))
-            cv.create_text(bx + 8, by0 - 12, text='N [m]', font=('Segoe UI', 9, 'bold'))
+                    cv.create_text(bx + 23, yy, text=f'{v:g}', anchor='w', font=('Segoe UI', 9))
+            cv.create_text(bx + 8, by0 - 12, text='N [m]', font=('Segoe UI', 10, 'bold'))
             paso_min = (mf.lat[1] - mf.lat[0]) * 60
             titulo = (f'{os.path.basename(fondo["ruta"])}: {nl} x {nlo} nodos, paso {paso_min:.4g}\'')
         else:
@@ -805,7 +938,7 @@ class App:
                 sale = (X(g.lon[0]) < ox - 1 or X(g.lon[-1]) > ox + pw + 1 or
                         Y(g.lat[-1]) < oy - 1 or Y(g.lat[0]) > oy + ph + 1)
                 cv.create_text(x1 + 4, y1 + 4 + 14 * n, anchor='nw', fill=col,
-                               font=('Segoe UI', 8, 'bold'),
+                               font=('Segoe UI', 9, 'bold'),
                                text=os.path.basename(m['ruta']) + ('  (continúa fuera del mapa)' if sale else ''))
         # puntos
         rech = set()
@@ -825,13 +958,13 @@ class App:
         for v in numeros_bonitos(lon0, lon1, 8):
             if lon0 <= v <= lon1:
                 cv.create_line(X(v), oy + ph, X(v), oy + ph + 5, fill='#555555')
-                cv.create_text(X(v), oy + ph + 15, text=f'{v:g}', font=('Segoe UI', 8))
+                cv.create_text(X(v), oy + ph + 15, text=f'{v:g}', font=('Segoe UI', 9))
         for v in numeros_bonitos(lat0, lat1, 9):
             if lat0 <= v <= lat1:
                 cv.create_line(ox - 5, Y(v), ox, Y(v), fill='#555555')
-                cv.create_text(ox - 8, Y(v), text=f'{v:g}', anchor='e', font=('Segoe UI', 8))
-        cv.create_text(ox + pw / 2, oy + ph + 34, text='Longitud (grados)', font=('Segoe UI', 9))
-        cv.create_text(ox - 48, oy + ph / 2, text='Latitud (grados)', angle=90, font=('Segoe UI', 9))
+                cv.create_text(ox - 8, Y(v), text=f'{v:g}', anchor='e', font=('Segoe UI', 9))
+        cv.create_text(ox + pw / 2, oy + ph + 34, text='Longitud (grados)', font=('Segoe UI', 10))
+        cv.create_text(ox - 48, oy + ph / 2, text='Latitud (grados)', angle=90, font=('Segoe UI', 10))
         cv.create_text(ox + pw / 2, oy - 18, text=titulo, font=('Segoe UI', 11, 'bold'), fill='#1b2631')
 
         # panel de información
@@ -839,7 +972,7 @@ class App:
         t.configure(state='normal')
         t.delete('1.0', 'end')
         t.tag_configure('t', font=('Segoe UI', 10, 'bold'), foreground=AZUL)
-        t.insert('end', 'Archivo de puntos\n', 't')
+        t.insert('end', NOMBRE_PUNTOS + '\n', 't')
         if pts:
             t.insert('end', f'{os.path.basename(self.v_puntos.get())}\n'
                             f'{len(pts)} puntos con coordenadas válidas\n'
@@ -890,16 +1023,6 @@ class App:
                 txt += '   N —'
         self.lbl_cursor.configure(text=txt)
 
-    def _guardar_mapa(self):
-        r = filedialog.asksaveasfilename(title='Guardar mapa', defaultextension='.eps',
-                                         initialdir=self.v['salida'].get() if os.path.isdir(
-                                             self.v['salida'].get()) else AQUI,
-                                         initialfile='mapa_datos.eps',
-                                         filetypes=[('PostScript encapsulado', '*.eps')])
-        if r:
-            self.cv_mapa.postscript(file=r, colormode='color')
-            self.estado.set(f'Mapa guardado: {r}')
-
     # ---------------------------------------------------------- 5. Calcular
     def _tab_calcular(self):
         fr = ttk.Frame(self.nb)
@@ -915,21 +1038,27 @@ class App:
                   'krig_n': tk.StringVar(value='16'), 'krig_ventana': tk.StringVar(value='6'),
                   'umbral_mad': tk.StringVar(value='5'), 'modelo': tk.StringVar(value='18'),
                   'salida': tk.StringVar(value=os.path.join(AQUI, 'resultados'))}
-        filas = [('IDW: exponente p', 'idw_p', '0.5 – 6; mayor p = más peso a los nodos cercanos'),
+        filas = [('IDW: exponente p', 'idw_p', '0.5 – 6; mayor p = más peso a los nodos cercanos.  '
+                                               '«Sugerir» busca el mejor p'),
                  ('IDW: número de nodos k', 'idw_k', '3 – 64'),
                  ('Kriging: número de vecinos n', 'krig_n', '4 – 64'),
                  ('Kriging: semiancho de ventana', 'krig_ventana', '3 – 12 nodos (para ajustar el variograma)'),
-                 ('Depuración R6: umbral', 'umbral_mad', '× σ robusta; mayor = rechaza menos puntos')]
+                 ('Depuración: umbral de error grueso', 'umbral_mad', 'veces la dispersión típica; mayor = aparta menos puntos')]
         for r, (t, k, ay) in enumerate(filas):
             ttk.Label(par, text=t).grid(row=r, column=0, sticky='w', padx=8, pady=3)
-            ttk.Entry(par, textvariable=self.v[k], width=8).grid(row=r, column=1, sticky='w')
+            ce = ttk.Frame(par)
+            ce.grid(row=r, column=1, sticky='w')
+            ttk.Entry(ce, textvariable=self.v[k], width=7).pack(side='left')
+            if k == 'idw_p':
+                ttk.Button(ce, text='Sugerir', style='Mini.TButton',
+                           command=self._sugerir_p).pack(side='left', padx=(4, 0))
             ttk.Label(par, text=ay, style='Ayuda.TLabel').grid(row=r, column=2, sticky='w', padx=8)
-        ttk.Label(par, text='Modelo paramétrico').grid(row=5, column=0, sticky='w', padx=8, pady=3)
+        ttk.Label(par, text='Modelo de ajuste').grid(row=5, column=0, sticky='nw', padx=8, pady=3)
         fm = ttk.Frame(par)
         fm.grid(row=5, column=1, columnspan=2, sticky='w')
-        ttk.Radiobutton(fm, text='Ec. (18): δH + 2 inclinaciones (paper)', value='18',
+        ttk.Radiobutton(fm, text=NOMBRE_MODELO['18'] + '  (δH, x₁, x₂ — recomendado)', value='18',
                         variable=self.v['modelo']).pack(anchor='w')
-        ttk.Radiobutton(fm, text='Ec. (23): superficie de 4 parámetros', value='23',
+        ttk.Radiobutton(fm, text=NOMBRE_MODELO['23'] + '  (x₀ … x₃)', value='23',
                         variable=self.v['modelo']).pack(anchor='w')
         ttk.Label(par, text='Carpeta de resultados').grid(row=6, column=0, sticky='w', padx=8, pady=(8, 6))
         fs = ttk.Frame(par)
@@ -951,7 +1080,7 @@ class App:
 
         bit = ttk.LabelFrame(fr, text='Bitácora')
         bit.pack(fill='both', expand=True, padx=14, pady=10)
-        self.txt_log = tk.Text(bit, wrap='none', font=('Consolas', 9), bg='#1b2631', fg='#e8eef4',
+        self.txt_log = tk.Text(bit, wrap='none', font=('Consolas', 10), bg='#1b2631', fg='#e8eef4',
                                insertbackground=BLANCO, relief='flat', padx=8, pady=6)
         sy = ttk.Scrollbar(bit, command=self.txt_log.yview)
         sx = ttk.Scrollbar(bit, orient='horizontal', command=self.txt_log.xview)
@@ -961,6 +1090,122 @@ class App:
         self.txt_log.pack(fill='both', expand=True)
         self.txt_log.tag_configure('mejor', foreground='#58d68d')
         self.txt_log.tag_configure('aviso', foreground='#f5b041')
+
+    def _sugerir_p(self):
+        """Ventana para sugerir el exponente p de IDW por validación cruzada."""
+        if not self.mallas:
+            messagebox.showinfo('Sugerir p', 'Primero agregue al menos una malla (pestaña 3).')
+            return
+        try:
+            k = self._leer_param('idw_k', int, 3, 64, 'IDW k')
+        except ValueError as e:
+            messagebox.showwarning('Sugerir p', str(e))
+            return
+        win = tk.Toplevel(self.root)
+        win.title('Sugerir el exponente p de IDW')
+        win.configure(bg=FONDO)
+        win.transient(self.root)
+        ttk.Label(win, text='¿Qué exponente p interpola mejor la malla?', style='Paso.TLabel'
+                  ).pack(anchor='w', padx=14, pady=(12, 2))
+        ttk.Label(win, text='Se retira la mitad de los nodos de la malla y, con IDW, se predicen 400 de los nodos '
+                            'retirados para cada p entre 0.5 y 6 (con k = ' + str(k) + ' nodos). Se compara lo '
+                            'predicho con el valor real del archivo; el p con menor error (RMSE) es el sugerido. '
+                            'Es la misma validación cruzada de appQGeoidCOL2023_0.m.',
+                  style='Ayuda.TLabel', wraplength=640, justify='left').pack(anchor='w', padx=14)
+        fila = ttk.Frame(win)
+        fila.pack(fill='x', padx=14, pady=8)
+        ttk.Label(fila, text='Malla:').pack(side='left')
+        cb = ttk.Combobox(fila, state='readonly', width=26, values=[m['nombre'] for m in self.mallas])
+        cb.current(0)
+        cb.pack(side='left', padx=6)
+        btn = ttk.Button(fila, text='Calcular', style='Mini.TButton')
+        btn.pack(side='left', padx=6)
+        cv = tk.Canvas(win, width=640, height=280, bg=BLANCO, highlightthickness=1,
+                       highlightbackground='#d5dbe3')
+        cv.pack(padx=14)
+        lbl = ttk.Label(win, text='Elija la malla y presione «Calcular».', style='Ayuda.TLabel')
+        lbl.pack(anchor='w', padx=14, pady=6)
+        usar = ttk.Button(win, text='Usar el p sugerido', style='Accion.TButton', state='disabled')
+        usar.pack(anchor='e', padx=14, pady=(0, 12))
+        estado = {}
+
+        def terminado(nombre, res):
+            if not win.winfo_exists():
+                return
+            btn.configure(state='normal')
+            if isinstance(res, str):
+                lbl.configure(text=res)
+                return
+            p_opt, tabla, n = res
+            estado['p'] = p_opt
+            rm = {p: r for p, r, _ in tabla}
+            texto = (f'{nombre}: p sugerido = {p_opt:g}  (RMSE = {rm[p_opt]:.1f} mm, {n} nodos de '
+                     f'control). Con p = 2 el RMSE es {rm.get(2.0, float("nan")):.1f} mm.')
+            if p_opt >= max(rm):
+                texto += (' El error sigue bajando hasta el máximo permitido (p = 6): en esta malla conviene '
+                          'dar mucho más peso a los nodos más cercanos.')
+            lbl.configure(text=texto)
+            usar.configure(state='normal', text=f'Usar p = {p_opt:g}')
+            self._grafico_p(cv, tabla, p_opt)
+
+        def calcular():
+            m = self.mallas[cb.current()]
+            btn.configure(state='disabled')
+            usar.configure(state='disabled')
+            lbl.configure(text='Calculando… (con mallas grandes tarda unos segundos)')
+            cv.delete('all')
+
+            def trabajo():
+                try:
+                    g = self.mapa_mallas.get(m['ruta']) or mp.cargar_malla(m['ruta'])
+                    res = mp.validacion_idw(g, k)
+                except SystemExit as e:
+                    res = str(e)
+                except Exception as e:
+                    res = f'No se pudo calcular: {e}'
+                self.q.put(('llamar', terminado, m['nombre'], res))
+            threading.Thread(target=trabajo, daemon=True).start()
+
+        def aplicar():
+            if 'p' in estado:
+                self.v['idw_p'].set(f'{estado["p"]:g}')
+                self.estado.set(f'IDW: p = {estado["p"]:g} (sugerido por validación cruzada).')
+                win.destroy()
+
+        btn.configure(command=calcular)
+        usar.configure(command=aplicar)
+
+    def _grafico_p(self, cv, tabla, p_opt):
+        cv.delete('all')
+        W, H = int(cv.cget('width')), int(cv.cget('height'))
+        L, R, T, B = 70, 20, 20, 46
+        ps = [t[0] for t in tabla]
+        rs = [t[1] for t in tabla]
+        y0, y1 = min(rs), max(rs)
+        m = (y1 - y0) * 0.1 or 1.0
+        y0, y1 = y0 - m, y1 + m
+        X = lambda v: L + (v - ps[0]) / (ps[-1] - ps[0]) * (W - L - R)
+        Y = lambda v: H - B - (v - y0) / (y1 - y0) * (H - T - B)
+        for v in numeros_bonitos(y0, y1, 5):
+            if y0 <= v <= y1:
+                cv.create_line(L, Y(v), W - R, Y(v), fill='#eef1f5')
+                cv.create_text(L - 6, Y(v), text=fmt_num(v), anchor='e', font=('Segoe UI', 9))
+        for v in range(1, 7):
+            cv.create_text(X(v), H - B + 14, text=str(v), font=('Segoe UI', 9))
+        cv.create_rectangle(L, T, W - R, H - B, outline='#9aa5b1')
+        pts = []
+        for p, r in zip(ps, rs):
+            pts += [X(p), Y(r)]
+        cv.create_line(*pts, fill=AZUL2, width=2)
+        for p, r in zip(ps, rs):
+            cv.create_oval(X(p) - 3, Y(r) - 3, X(p) + 3, Y(r) + 3, fill=AZUL2, outline='')
+        r_opt = dict(zip(ps, rs))[p_opt]
+        cv.create_line(X(p_opt), T, X(p_opt), H - B, fill=VERDE, dash=(4, 3))
+        cv.create_oval(X(p_opt) - 6, Y(r_opt) - 6, X(p_opt) + 6, Y(r_opt) + 6, fill=VERDE, outline=BLANCO)
+        cv.create_text(X(p_opt) + 8, T + 10, text=f'p sugerido = {p_opt:g}', anchor='w', fill=VERDE,
+                       font=('Segoe UI', 10, 'bold'))
+        cv.create_text((L + W - R) / 2, H - 14, text='exponente p', font=('Segoe UI', 10))
+        cv.create_text(16, (T + H - B) / 2, text='RMSE [mm]', angle=90, font=('Segoe UI', 10))
 
     def _elegir_salida(self):
         r = filedialog.askdirectory(title='Carpeta de resultados', initialdir=self.v['salida'].get())
@@ -1072,6 +1317,8 @@ class App:
                 elif tipo == 'prog':
                     self.pb['value'] = msg[1]
                     self.lbl_prog.configure(text=msg[2])
+                elif tipo == 'llamar':
+                    msg[1](*msg[2:])
                 elif tipo == 'mapa_ok':
                     self.mapa_mallas[msg[1]] = msg[2]
                     self.mapa_cargando.discard(msg[1])
@@ -1106,9 +1353,9 @@ class App:
     def _tab_resultados(self):
         fr = ttk.Frame(self.nb)
         self.nb.add(fr, text='  6 · Resultados  ')
-        self._paso(fr, 'Resultados — modelo paramétrico y mejor método',
-                   'Para cada malla: parámetros de la Ec. (18) con su desviación estándar, σ₀, R² y R² '
-                   'ajustado de cada método de interpolación. En verde, el método con mayor R²_adj.')
+        self._paso(fr, 'Resultados — modelo de ajuste y mejor método',
+                   'Para cada malla: los parámetros del modelo de ajuste con su desviación estándar, σ₀, R² y R² '
+                   'ajustado de cada método de interpolación. En verde, el método con mayor R² ajustado.')
         top = ttk.Frame(fr)
         top.pack(fill='x', padx=14)
         self.lbl_dep = ttk.Label(top, text='Aún no hay resultados: ejecute el cálculo en la pestaña 5.')
@@ -1144,19 +1391,22 @@ class App:
         self._pestana_rechazados(s)
         f = ttk.Frame(self.nb_res)
         self.nb_res.add(f, text='Archivos generados')
-        t = tk.Text(f, height=12, font=('Consolas', 9), bg=BLANCO, relief='flat', padx=10, pady=8)
+        t = tk.Text(f, height=12, font=('Consolas', 10), bg=BLANCO, relief='flat', padx=10, pady=8)
         t.pack(fill='both', expand=True)
         t.insert('end', 'Carpeta: ' + s['carpeta'] + '\n\n')
-        expl = {'coordenadas_zero_tide.csv': 'puntos aceptados con h y H originales, corrección y valor zero tide',
-                'puntos_rechazados.csv': 'puntos depurados y motivo (reglas R1-R7)',
-                'resumen_modelos.csv': 'parámetros, σ0, R² y R²_adj de todos los métodos y mallas',
+        expl = {'coordenadas_zero_tide.xlsx': 'Excel: puntos aceptados con h y H originales, corrección y zero tide',
+                'coordenadas_zero_tide.csv': 'lo mismo en texto CSV',
+                'puntos_rechazados.xlsx': 'Excel: puntos apartados en la depuración y el motivo',
+                'puntos_rechazados.csv': 'lo mismo en texto CSV',
+                'resumen_modelos.xlsx': 'Excel: parámetros, σ₀, R² y R² ajustado de todos los métodos y mallas',
+                'resumen_modelos.csv': 'lo mismo en texto CSV',
                 'reporte.txt': 'bitácora completa'}
         for nombre in sorted(os.listdir(s['carpeta'])):
             e = expl.get(nombre, '')
             if nombre.startswith('interpolacion_'):
                 e = 'N, l = h−H−N y residuos v de los 6 métodos en cada punto; σ y modelo del kriging'
             elif nombre.startswith('modelo_parametrico_'):
-                e = 'tabla de la Ec. (18) para esa malla'
+                e = 'parámetros del modelo de ajuste para esa malla'
             elif nombre.endswith('_zero_tide.txt'):
                 e = 'malla convertida a zero tide (mismo formato del original)'
             t.insert('end', f'  {nombre:<42} {e}\n')
@@ -1198,7 +1448,7 @@ class App:
         unidades = ('x₁ en m/° (norte–sur), x₂ en m/° (este–oeste). φ₀ = {:.4f}°, λ₀ = {:.4f}°.'
                     if r['nombres_x'][0] == 'dH' else 'x₀…x₃ en m. φ₀ = {:.4f}°, λ₀ = {:.4f}°.')
         ttk.Label(f, text=unidades.format(a_mejor['phi0'], a_mejor['lam0']) +
-                  '  El modelo se ajustó por mínimos cuadrados con P = I (Ec. 19-20).',
+                  '  Ajuste por mínimos cuadrados con todos los puntos con el mismo peso.',
                   style='Ayuda.TLabel').pack(anchor='w')
 
     def _barras_r2(self, cv, r):
@@ -1215,10 +1465,10 @@ class App:
             y = 30 + k * alto
             largo = max(v, 0) / vmax * (W - x0 - 70)
             color = VERDE if met == r['mejor'] else AZUL2
-            cv.create_text(x0 - 6, y + alto / 2, text=met, anchor='e', font=('Segoe UI', 8))
+            cv.create_text(x0 - 6, y + alto / 2, text=met, anchor='e', font=('Segoe UI', 9))
             cv.create_rectangle(x0, y + 3, x0 + largo, y + alto - 3, fill=color, outline='')
             cv.create_text(x0 + largo + 4, y + alto / 2, text=f'{v:.4f}', anchor='w',
-                           font=('Segoe UI', 8, 'bold' if met == r['mejor'] else 'normal'))
+                           font=('Segoe UI', 9, 'bold' if met == r['mejor'] else 'normal'))
 
     def _pestana_rechazados(self, s):
         f = ttk.Frame(self.nb_res)
@@ -1244,13 +1494,21 @@ class App:
     # ----------------------------------------------- 6. Kriging/variograma
     def _tab_kriging(self):
         fr = ttk.Frame(self.nb)
-        self.nb.add(fr, text='  7 · Kriging: semivariograma  ')
-        self._paso(fr, 'Kriging ordinario — semivariograma / covariograma en un punto',
-                   'Para cada punto el variograma se ajusta con los nodos de la malla en una ventana '
-                   'alrededor del punto (2·semiancho × 2·semiancho nodos). Puntos = valores experimentales '
-                   '(tamaño ∝ número de pares); líneas = los 4 modelos ajustados; línea gruesa = modelo elegido.')
+        self.nb.add(fr, text='  7 · Kriging ordinario  ')
+        self._paso(fr, 'Kriging ordinario — semivariograma y covariograma',
+                   'El semivariograma se ajusta en una ventana local (uno por celda de la malla que contiene '
+                   'puntos). No hace falta revisarlos uno por uno: la vista «Resumen» los reúne todos en una sola '
+                   'gráfica. Con «Un punto» se ve el de un punto: puntos negros = valores experimentales (más '
+                   'grandes = más pares de nodos), líneas = las 4 curvas ajustadas, línea gruesa = la elegida '
+                   '(menor SSRw).')
         ctrl = ttk.Frame(fr)
         ctrl.pack(fill='x', padx=14)
+        self.v_vista = tk.StringVar(value='resumen')
+        ttk.Label(ctrl, text='Vista:').pack(side='left')
+        ttk.Radiobutton(ctrl, text='Resumen de todos', value='resumen', variable=self.v_vista,
+                        command=self._dibujar_variograma).pack(side='left', padx=(4, 0))
+        ttk.Radiobutton(ctrl, text='Un punto', value='punto', variable=self.v_vista,
+                        command=self._dibujar_variograma).pack(side='left', padx=(6, 16))
         ttk.Label(ctrl, text='Malla:').pack(side='left')
         self.cb_k_malla = ttk.Combobox(ctrl, state='readonly', width=26)
         self.cb_k_malla.pack(side='left', padx=(4, 14))
@@ -1267,15 +1525,15 @@ class App:
                         command=self._dibujar_variograma).pack(side='left')
         ttk.Button(ctrl, text='Guardar gráfico (.eps)', command=self._guardar_grafico).pack(side='right')
         self.cb_k_malla.bind('<<ComboboxSelected>>', lambda e: self._cambiar_malla_kriging())
-        self.cb_k_punto.bind('<<ComboboxSelected>>', lambda e: self._dibujar_variograma())
-        self.cb_k_punto.bind('<Return>', lambda e: self._dibujar_variograma())
+        self.cb_k_punto.bind('<<ComboboxSelected>>', lambda e: self._ver_punto())
+        self.cb_k_punto.bind('<Return>', lambda e: self._ver_punto())
 
         cuerpo = ttk.Frame(fr)
         cuerpo.pack(fill='both', expand=True, padx=14, pady=8)
         self.cv_var = tk.Canvas(cuerpo, bg=BLANCO, highlightthickness=1, highlightbackground='#d5dbe3')
         self.cv_var.pack(side='left', fill='both', expand=True)
         self.cv_var.bind('<Configure>', lambda e: self._dibujar_variograma())
-        self.txt_var = tk.Text(cuerpo, width=46, font=('Consolas', 9), bg=BLANCO, relief='flat',
+        self.txt_var = tk.Text(cuerpo, width=46, font=('Consolas', 10), bg=BLANCO, relief='flat',
                                padx=10, pady=8, wrap='word')
         self.txt_var.pack(side='left', fill='y', padx=(10, 0))
 
@@ -1296,6 +1554,10 @@ class App:
                 self.cb_k_punto.set(ids[0])
         self._dibujar_variograma()
 
+    def _ver_punto(self):
+        self.v_vista.set('punto')
+        self._dibujar_variograma()
+
     def _datos_variograma(self):
         if not self.salida or not self.salida['resultados']:
             return None, 'Ejecute el cálculo (pestaña 5) para ver el semivariograma del kriging.'
@@ -1312,6 +1574,132 @@ class App:
         return (r, pid, info, mod, p), None
 
     def _dibujar_variograma(self):
+        if self.v_vista.get() == 'resumen' and self.salida and self.salida['resultados']:
+            self._dibujar_resumen()
+        else:
+            self._dibujar_punto()
+
+    def _dibujar_resumen(self):
+        """Todos los semivariogramas (o covariogramas) locales en una gráfica: mediana y franja P10-P90."""
+        cv = self.cv_var
+        cv.delete('all')
+        W, H = cv.winfo_width(), cv.winfo_height()
+        if W < 100 or H < 100:
+            return
+        r = next((x for x in self.salida['resultados'] if x['malla'].nombre == self.cb_k_malla.get()),
+                 self.salida['resultados'][0])
+        mods = list(r['variogramas'].values())
+        if not mods:
+            cv.create_text(W / 2, H / 2, text='No hay variogramas para esta malla.', fill=GRIS,
+                           font=('Segoe UI', 12))
+            return
+        cov = self.v_tipo.get() == 'cov'
+        fun = mp.modelo_covariograma if cov else mp.modelo_variograma
+
+        def pct(v, q):
+            v = sorted(v)
+            return v[min(len(v) - 1, max(0, int(round(q * (len(v) - 1)))))]
+        hmax = pct([m['lagMax'] for m in mods], 0.5)
+        hs = [hmax * k / 80 for k in range(81)]
+        curvas = [[fun(h if h > 0 else 1e-9, m['nugget'], m['sill'], m['rango'], m['tipo']) for h in hs]
+                  for m in mods]
+        p10 = [pct([c[k] for c in curvas], 0.10) for k in range(len(hs))]
+        p50 = [pct([c[k] for c in curvas], 0.50) for k in range(len(hs))]
+        p90 = [pct([c[k] for c in curvas], 0.90) for k in range(len(hs))]
+        nb = 16                                       # mediana de los valores experimentales por rezago
+        cajas = [[] for _ in range(nb)]
+        for m in mods:
+            for h, y in zip(m['hExp'], m['cExp'] if cov else m['gExp']):
+                if h <= hmax:
+                    cajas[min(nb - 1, int(h / hmax * nb))].append((h, y))
+        exp = [(pct([c[0] for c in b], 0.5), pct([c[1] for c in b], 0.5)) for b in cajas if b]
+        ys = p10 + p90 + [e[1] for e in exp] + [0.0]
+        y0, y1 = min(ys), max(ys)
+        mg = (y1 - y0) * 0.08 or 1e-6
+        y0, y1 = (y0 - mg if y0 < 0 else 0.0), y1 + mg
+        L, R, T, B = 90, 24, 46, 58
+        X = lambda v: L + v / hmax * (W - L - R)
+        Y = lambda v: H - B - (v - y0) / (y1 - y0) * (H - T - B)
+        for v in numeros_bonitos(0, hmax):
+            if v <= hmax * 1.0001:
+                cv.create_line(X(v), T, X(v), H - B, fill='#eef1f5')
+                cv.create_text(X(v), H - B + 14, text=fmt_num(v), font=('Segoe UI', 9), fill=NEGRO)
+        for v in numeros_bonitos(y0, y1):
+            if y0 <= v <= y1:
+                cv.create_line(L, Y(v), W - R, Y(v), fill='#eef1f5')
+                cv.create_text(L - 6, Y(v), text=fmt_num(v), anchor='e', font=('Segoe UI', 9), fill=NEGRO)
+        banda = [c for h, y in zip(hs, p90) for c in (X(h), Y(y))] + \
+                [c for h, y in zip(reversed(hs), reversed(p10)) for c in (X(h), Y(y))]
+        cv.create_polygon(*banda, fill='#cfe0f3', outline='')
+        for serie, estilo in ((p10, {'width': 1, 'dash': (4, 3)}), (p90, {'width': 1, 'dash': (4, 3)}),
+                              (p50, {'width': 3})):
+            pts = [c for h, y in zip(hs, serie) for c in (X(h), Y(y))]
+            cv.create_line(*pts, fill=AZUL, **estilo)
+        for h, y in exp:
+            cv.create_oval(X(h) - 5, Y(y) - 5, X(h) + 5, Y(y) + 5, fill=NEGRO, outline=BLANCO)
+        cv.create_rectangle(L, T, W - R, H - B, outline='#9aa5b1')
+        if y0 < 0:
+            cv.create_line(L, Y(0), W - R, Y(0), fill='#9aa5b1', dash=(2, 2))
+        cv.create_text((L + W - R) / 2, H - 18, text='distancia h  [km]', font=('Segoe UI', 10), fill=NEGRO)
+        cv.create_text(18, (T + H - B) / 2, text='C(h)  [m²]' if cov else 'γ(h)  [m²]', angle=90,
+                       font=('Segoe UI', 10), fill=NEGRO)
+        cv.create_text(L, 22, anchor='w', fill=AZUL, font=('Segoe UI', 12, 'bold'),
+                       text=f'{"Covariogramas" if cov else "Semivariogramas"} locales — {r["malla"].nombre}: '
+                            f'resumen de {len(mods)}')
+        lx, ly = (W - R - 300, T + 14) if cov else (L + 14, T + 14)
+        cv.create_rectangle(lx - 8, ly - 12, lx + 290, ly + 52, fill=BLANCO, outline='#d5dbe3')
+        cv.create_line(lx, ly, lx + 24, ly, fill=AZUL, width=3)
+        cv.create_text(lx + 32, ly, anchor='w', font=('Segoe UI', 9), text='mediana de las curvas ajustadas')
+        cv.create_rectangle(lx, ly + 14, lx + 24, ly + 26, fill='#cfe0f3', outline='')
+        cv.create_text(lx + 32, ly + 20, anchor='w', font=('Segoe UI', 9),
+                       text='80 % central de las curvas (P10 – P90)')
+        cv.create_oval(lx + 7, ly + 35, lx + 17, ly + 45, fill=NEGRO, outline='')
+        cv.create_text(lx + 32, ly + 40, anchor='w', font=('Segoe UI', 9),
+                       text='mediana de los valores experimentales')
+
+        # panel de texto
+        T_ = self.txt_var
+        T_.configure(state='normal')
+        T_.delete('1.0', 'end')
+        T_.tag_configure('t', font=('Segoe UI', 11, 'bold'), foreground=AZUL)
+        T_.tag_configure('e', foreground=VERDE, font=('Consolas', 10, 'bold'))
+        n_pts = len(r['sig_k'])
+        T_.insert('end', 'Resumen del kriging ordinario\n', 't')
+        T_.insert('end', f'Semivariogramas ajustados: {len(mods)}\n'
+                         f'Puntos interpolados:       {n_pts}\n'
+                         'Los puntos de una misma celda comparten la ventana y, por tanto, el '
+                         'semivariograma.\n\n')
+        T_.insert('end', 'Modelo elegido (menor SSRw)\n', 't')
+        cuenta = {}
+        for m in mods:
+            cuenta[m['tipo']] = cuenta.get(m['tipo'], 0) + 1
+        for tipo, n in sorted(cuenta.items(), key=lambda t: -t[1]):
+            T_.insert('end', f'{mp.NOMBRE_VARIOGRAMA[tipo]:<12} {n:>5}  ({100 * n / len(mods):.0f} %)\n',
+                      'e' if n == max(cuenta.values()) else '')
+        T_.insert('end', '\nValores típicos: mediana [P10 – P90]\n', 't')
+        for nombre, clave, f in (('pepita C₀', 'nugget', '{:.2e} m²'), ('meseta parcial C', 'sill', '{:.2e} m²'),
+                                 ('rango a', 'rango', '{:.1f} km')):
+            v = [m[clave] for m in mods]
+            T_.insert('end', f'{nombre:<17}{f.format(pct(v, .5))}\n{"":<17}[{f.format(pct(v, .1))} – '
+                             f'{f.format(pct(v, .9))}]\n')
+        tope = sum(1 for m in mods if m['rango'] >= 0.999 * m['lagMax'])
+        T_.insert('end', f'\nRango en el máximo permitido: {100 * tope / len(mods):.0f} %\n')
+        if tope:
+            T_.insert('end', 'En esas ventanas N sigue cambiando con la distancia (tendencia regional), así '
+                             'que la curva no llega a estabilizarse. No afecta mucho al kriging, que solo usa '
+                             'los vecinos más cercanos.\n')
+        sig = sorted(i['sigma'] * 1000 for i in r['sig_k'].values())
+        T_.insert('end', '\nIncertidumbre del kriging (σ_KO)\n', 't')
+        T_.insert('end', f'mediana {pct(sig, .5):.2f} mm\nP95     {pct(sig, .95):.2f} mm\n'
+                         f'máximo  {sig[-1]:.2f} mm\n')
+        if cov:
+            T_.insert('end', '\nEn el covariograma, los valores experimentales se calculan respecto a la media '
+                             'de cada ventana. Cuando N tiene tendencia regional quedan por debajo de la curva '
+                             'del modelo: es esperable y no indica un error.\n')
+        T_.insert('end', '\nPara ver el semivariograma de un punto, elíjalo en «Punto».\n')
+        T_.configure(state='disabled')
+
+    def _dibujar_punto(self):
         cv = self.cv_var
         cv.delete('all')
         W, H = cv.winfo_width(), cv.winfo_height()
@@ -1350,18 +1738,18 @@ class App:
         for v in numeros_bonitos(0, hmax):
             if v <= hmax * 1.0001:
                 cv.create_line(X(v), T, X(v), H - B, fill='#eef1f5')
-                cv.create_text(X(v), H - B + 14, text=fmt_num(v), font=('Segoe UI', 8), fill=GRIS)
+                cv.create_text(X(v), H - B + 14, text=fmt_num(v), font=('Segoe UI', 9), fill=GRIS)
         for v in numeros_bonitos(ymin, ymax):
             if ymin <= v <= ymax:
                 cv.create_line(L, Y(v), W - R, Y(v), fill='#eef1f5')
-                cv.create_text(L - 6, Y(v), text=fmt_num(v), anchor='e', font=('Segoe UI', 8), fill=GRIS)
+                cv.create_text(L - 6, Y(v), text=fmt_num(v), anchor='e', font=('Segoe UI', 9), fill=GRIS)
         cv.create_rectangle(L, T, W - R, H - B, outline='#9aa5b1')
         if ymin < 0:
             cv.create_line(L, Y(0), W - R, Y(0), fill='#9aa5b1', dash=(2, 2))
         cv.create_text((L + W - R) / 2, H - 18, text='distancia h  [km]  (proyección Origen-Nacional)',
-                       font=('Segoe UI', 9), fill='#1b2631')
+                       font=('Segoe UI', 10), fill='#1b2631')
         cv.create_text(18, (T + H - B) / 2, text='C(h)  [m²]' if cov else 'γ(h)  [m²]', angle=90,
-                       font=('Segoe UI', 9), fill='#1b2631')
+                       font=('Segoe UI', 10), fill='#1b2631')
         titulo = 'Covariograma' if cov else 'Semivariograma'
         cv.create_text(L, 22, anchor='w', fill=AZUL, font=('Segoe UI', 12, 'bold'),
                        text=f'{titulo} local — {r["malla"].nombre}, punto {pid}')
@@ -1371,7 +1759,7 @@ class App:
         if ymin <= meseta <= ymax:
             cv.create_line(L, Y(meseta), W - R, Y(meseta), fill='#b03a2e', dash=(6, 4))
             cv.create_text(W - R - 4, Y(meseta) - 8 if not cov else Y(meseta) + 8, anchor='e',
-                           fill='#b03a2e', font=('Segoe UI', 8),
+                           fill='#b03a2e', font=('Segoe UI', 9),
                            text=('C(0) = C₀ + C' if cov else 'meseta C₀ + C') + f' = {fmt_num(meseta)} m²')
         # curvas
         for t, ys in curvas:
@@ -1394,13 +1782,13 @@ class App:
         cv.create_rectangle(lx - 8, ly - 12, lx + 230, ly + 20 * len(curvas) + 8, fill=BLANCO,
                             outline='#d5dbe3')
         cv.create_oval(lx, ly - 4, lx + 8, ly + 4, fill='#1b2631', outline='')
-        cv.create_text(lx + 16, ly, anchor='w', font=('Segoe UI', 8), text='experimental (tamaño ∝ nº pares)')
+        cv.create_text(lx + 16, ly, anchor='w', font=('Segoe UI', 9), text='experimental (tamaño ∝ nº pares)')
         for k, (t, _) in enumerate(curvas):
             yy = ly + 20 * (k + 1)
             es = t['tipo'] == mod['tipo']
             estilo = {'width': 3} if es else {'width': 1.5, 'dash': (5, 3)}
             cv.create_line(lx, yy, lx + 24, yy, fill=COLORES_MODELO[t['tipo']], **estilo)
-            cv.create_text(lx + 32, yy, anchor='w', font=('Segoe UI', 8, 'bold' if es else 'normal'),
+            cv.create_text(lx + 32, yy, anchor='w', font=('Segoe UI', 9, 'bold' if es else 'normal'),
                            text=f'{mp.NOMBRE_VARIOGRAMA[t["tipo"]]}' + ('  (elegido)' if es else ''))
 
         # panel de texto

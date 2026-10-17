@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Modelo paramétrico GNSS/nivelación en Zero Tide con 6 métodos de interpolación.
+Puntos de la Red Nacional de Nivelación frente a modelos de geoide, en Zero Tide,
+con 6 métodos de interpolación y modelo paramétrico.
 
 Flujo
 -----
@@ -671,6 +672,10 @@ def ajustar_variograma(xy, z, n_lags=12, tipos=('sph', 'exp', 'gau', 'cir')):
     return mejor
 
 
+NOMBRE_MODELO = {'18': 'Modelo de desplazamiento e inclinación',
+                 '23': 'Superficie de corrección de 4 parámetros'}
+
+
 NOMBRE_VARIOGRAMA = {'sph': 'esférico', 'exp': 'exponencial', 'gau': 'gaussiano',
                      'cir': 'circular'}
 
@@ -995,8 +1000,133 @@ def escribir_csv(ruta, campos, filas):
             w.writerow({k: ('' if r.get(k) is None else r.get(k)) for k in campos})
 
 
+def escribir_xlsx(ruta, campos, filas, hoja='Datos'):
+    """Escribe un libro de Excel (.xlsx) mínimo, solo con la librería estándar.
+    Los textos numéricos se guardan como números (Excel no los confunde con
+    fechas ni depende del separador decimal del computador)."""
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    def col(n):
+        s = ''
+        n += 1
+        while n:
+            n, r = divmod(n - 1, 26)
+            s = chr(65 + r) + s
+        return s
+
+    def celda(ref, v, estilo=0):
+        if v is None or v == '':
+            return ''
+        if not isinstance(v, str) or v.strip().lstrip('-').replace('.', '', 1).isdigit():
+            try:
+                x = float(v)
+                if math.isfinite(x):
+                    return f'<c r="{ref}" s="{estilo}"><v>{repr(x)}</v></c>'
+            except (TypeError, ValueError):
+                pass
+        return (f'<c r="{ref}" s="{estilo}" t="inlineStr"><is><t xml:space="preserve">'
+                f'{escape(str(v))}</t></is></c>')
+
+    anchos = [max([len(str(c))] + [len(str(f.get(c, '') or '')) for f in filas[:500]]) for c in campos]
+    xml = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+           '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+           '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" '
+           'activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>']
+    for k, a in enumerate(anchos):
+        xml.append(f'<col min="{k + 1}" max="{k + 1}" width="{min(max(a + 2, 8), 80)}" customWidth="1"/>')
+    xml.append('</cols><sheetData><row r="1">')
+    xml += [celda(f'{col(k)}1', str(c), 1) for k, c in enumerate(campos)]
+    xml.append('</row>')
+    for n, f in enumerate(filas, start=2):
+        xml.append(f'<row r="{n}">' + ''.join(celda(f'{col(k)}{n}', f.get(c)) for k, c in enumerate(campos))
+                   + '</row>')
+    xml.append('</sheetData></worksheet>')
+    tipos = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+             '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+             '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+             '<Default Extension="xml" ContentType="application/xml"/>'
+             '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+             '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+             '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+             '</Types>')
+    rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            '</Relationships>')
+    libro = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+             '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+             'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+             f'<sheets><sheet name="{escape(hoja[:31])}" sheetId="1" r:id="rId1"/></sheets></workbook>')
+    libro_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                  '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+                  '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+                  '</Relationships>')
+    estilos = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+               '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+               '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>'
+               '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+               '<fills count="2"><fill><patternFill patternType="none"/></fill>'
+               '<fill><patternFill patternType="gray125"/></fill></fills>'
+               '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+               '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+               '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+               '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>'
+               '</styleSheet>')
+    with zipfile.ZipFile(ruta, 'w', zipfile.ZIP_DEFLATED) as z:
+        z.writestr('[Content_Types].xml', tipos)
+        z.writestr('_rels/.rels', rels)
+        z.writestr('xl/workbook.xml', libro)
+        z.writestr('xl/_rels/workbook.xml.rels', libro_rels)
+        z.writestr('xl/styles.xml', estilos)
+        z.writestr('xl/worksheets/sheet1.xml', ''.join(xml))
+
+
 def fmt(x, n=4):
     return '' if x is None else f'{x:.{n}f}'
+
+
+# ---------------------------------------------------------------------------
+# Sugerencia del exponente p de IDW por validación cruzada (como en el .m)
+# ---------------------------------------------------------------------------
+def validacion_idw(m, k=16, valores_p=None, n_control=400, semilla=2023, cancelar=None):
+    """Validación cruzada por decimación (validacionDecimacion de appQGeoidCOL2023_0.m):
+    se arma una malla con los nodos de índice par (paso doble) y con IDW se
+    predicen n_control nodos retirados elegidos al azar (semilla fija). Para cada
+    p se calcula RMSE = sqrt(prom[(N_predicho - N_archivo)²]). El p sugerido es
+    el de menor RMSE. Devuelve (p_sugerido, [(p, rmse_mm, mae_mm), ...], n_controles)."""
+    import random
+    if valores_p is None:
+        valores_p = [0.5 + 0.25 * n for n in range(23)]          # 0.5 ... 6.0
+    md = Malla(m.nombre + ' (decimada)', m.lat[::2], m.lon[::2], [f[::2] for f in m.Z[::2]])
+    md.preparar_proyeccion()
+    cand = [(i, j) for i in range(len(m.lat)) for j in range(len(m.lon))
+            if (i % 2 == 1 or j % 2 == 1) and m.lat[i] <= md.lat[-1] and m.lon[j] <= md.lon[-1]
+            and m.Z[i][j] is not None]
+    sel = random.Random(semilla).sample(cand, min(n_control, len(cand)))
+    vecinos = []          # (distancias, valores de N, N verdadero) de cada nodo de control
+    for i, j in sel:
+        la, lo = m.lat[i], m.lon[j]
+        xy0 = proyectar_origen_nacional(la, lo)
+        nodos, _ = pesos_idw(md, la, lo, xy0, 1.0, k)
+        d = [math.dist(md.xy[a][b], xy0) for a, b in nodos]
+        z = [md.Z[a][b] for a, b in nodos]
+        if any(v is None for v in z):
+            continue
+        vecinos.append((d, z, m.Z[i][j]))
+    tabla = []
+    for p in valores_p:
+        if cancelar is not None and cancelar():
+            raise Cancelado()
+        err = []
+        for d, z, verdad in vecinos:
+            w = [1.0 / x ** p for x in d]
+            err.append(sum(wi * zi for wi, zi in zip(w, z)) / sum(w) - verdad)
+        tabla.append((p, 1000 * math.sqrt(sum(e * e for e in err) / len(err)),
+                      1000 * sum(abs(e) for e in err) / len(err)))
+    mejor = min(tabla, key=lambda t: t[1])
+    return mejor[0], tabla, len(vecinos)
 
 
 class Cancelado(Exception):
@@ -1055,7 +1185,7 @@ def procesar_malla(m, puntos, par, salida, modelo='18', progreso=None, cancelar=
         raise ValueError(f'Solo {len(comunes)} puntos comunes con la malla {m.nombre}: '
                          f'no se puede ajustar el modelo.')
 
-    log(f'\n[4] MODELO PARAMÉTRICO Ec. ({modelo}) sobre l = h_ZT - H_ZT - N_ZT, P = I')
+    log(f'\n[4] {NOMBRE_MODELO[modelo].upper()} sobre l = h_ZT - H_ZT - N_ZT, P = I')
     if modelo == '18':
         log('    l = δH + x1(φ-φ0) + x2(λ-λ0)cosφ   (φ, λ en grados; x1, x2 en m/°)')
     else:
@@ -1076,7 +1206,7 @@ def procesar_malla(m, puntos, par, salida, modelo='18', progreso=None, cancelar=
         log(f'    {met:<22}' + ''.join(f'{x:>9.4f}±{s:<6.4f}' for x, s in zip(a['x'], a['sx'])) +
             f'{a["sigma0"]:>9.4f}{a["R2"]:>10.6f}{a["R2adj"]:>12.8f}' +
             ('  <-- MEJOR' if met == mejor else ''))
-        fila = {'malla': m.nombre, 'metodo': met, 'modelo': f'Ec.{modelo}', 'n': a['n'],
+        fila = {'malla': m.nombre, 'metodo': met, 'modelo': NOMBRE_MODELO[modelo], 'n': a['n'],
                 'parametros': a['u'], 'phi0': fmt(a['phi0'], 6), 'lambda0': fmt(a['lam0'], 6),
                 'media_l': fmt(a['media_l']), 'std_l': fmt(a['std_l']),
                 'sigma0': fmt(a['sigma0']), 'rmse_residuos': fmt(a['rmse']),
@@ -1139,7 +1269,7 @@ def ejecutar(cfg, progreso=None, cancelar=None):
     t0 = time.time()
     avisar = progreso or (lambda f, t: None)
     log('=' * 78)
-    log('MODELO PARAMÉTRICO GNSS/NIVELACIÓN EN ZERO TIDE (Guimarães et al. 2025)')
+    log('PUNTOS RED NACIONAL DE NIVELACIÓN FRENTE A MODELOS DE GEOIDE (ZERO TIDE)')
     log('=' * 78)
     for f in FUENTES:
         log('  ' + f)
@@ -1197,8 +1327,10 @@ def ejecutar(cfg, progreso=None, cancelar=None):
         log(f'    - id {r["id"]} (línea {r["linea"]}): {r["regla"]} | {r["detalle"]}')
     if len(rechazos) > 60:
         log(f'    ... ({len(rechazos) - 60} más en puntos_rechazados.csv)')
-    escribir_csv(os.path.join(cfg.salida, 'puntos_rechazados.csv'),
-                 ['id', 'linea', 'lat', 'lon', 'h', 'H', 'regla', 'detalle'], rechazos)
+    campos_r = ['id', 'linea', 'lat', 'lon', 'h', 'H', 'regla', 'detalle']
+    escribir_csv(os.path.join(cfg.salida, 'puntos_rechazados.csv'), campos_r, rechazos)
+    escribir_xlsx(os.path.join(cfg.salida, 'puntos_rechazados.xlsx'), campos_r, rechazos,
+                  'Puntos rechazados')
 
     # ---------------- 2. Exportación zero tide ----------------
     ruta_zt = os.path.join(cfg.salida, 'coordenadas_zero_tide.csv')
@@ -1206,8 +1338,10 @@ def ejecutar(cfg, progreso=None, cancelar=None):
                  'h_original': fmt(p['h']), 'sistema_h': cfg.sis_h, 'corr_h': fmt(p['corr_h'], 5),
                  'h_ZT': fmt(p['h_zt']), 'H_original': fmt(p['H']), 'sistema_H': cfg.sis_H,
                  'corr_H': fmt(p['corr_H'], 5), 'H_ZT': fmt(p['H_zt'])} for p in puntos]
-    escribir_csv(ruta_zt, ['id', 'lat', 'lon', 'h_original', 'sistema_h', 'corr_h', 'h_ZT',
-                           'H_original', 'sistema_H', 'corr_H', 'H_ZT'], filas_zt)
+    campos_zt = ['id', 'lat', 'lon', 'h_original', 'sistema_h', 'corr_h', 'h_ZT',
+                 'H_original', 'sistema_H', 'corr_H', 'H_ZT']
+    escribir_csv(ruta_zt, campos_zt, filas_zt)
+    escribir_xlsx(ruta_zt[:-4] + '.xlsx', campos_zt, filas_zt, 'Zero tide')
     log(f'\n[2] EXPORTACIÓN: {len(puntos)} puntos en zero tide -> {ruta_zt}')
 
     salida = {'puntos': puntos, 'rechazos': rechazos, 'conteo_rechazos': conteo,
@@ -1233,9 +1367,12 @@ def ejecutar(cfg, progreso=None, cancelar=None):
             [c for x in (['dH', 'x1', 'x2'] if cfg.modelo == '18' else ['x0', 'x1', 'x2', 'x3'])
              for c in (x, 's_' + x)] + ['sigma0', 'rmse_residuos', 'R2', 'R2_ajustado', 'mejor']
         escribir_csv(os.path.join(cfg.salida, 'resumen_modelos.csv'), campos_g, resumen_global)
+        escribir_xlsx(os.path.join(cfg.salida, 'resumen_modelos.xlsx'), campos_g, resumen_global,
+                      'Resumen de modelos')
     log('\n' + '=' * 78)
-    log(f'Archivos en {cfg.salida}: coordenadas_zero_tide.csv, puntos_rechazados.csv, '
-        f'interpolacion_<malla>.csv, modelo_parametrico_<malla>.csv, resumen_modelos.csv, reporte.txt')
+    log(f'Archivos en {cfg.salida}: coordenadas_zero_tide (.csv y .xlsx), puntos_rechazados '
+        f'(.csv y .xlsx), resumen_modelos (.csv y .xlsx), interpolacion_<malla>.csv, '
+        f'modelo_parametrico_<malla>.csv, reporte.txt')
     log(f'Tiempo total: {time.time() - t0:.1f} s')
     with open(os.path.join(cfg.salida, 'reporte.txt'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(BITACORA) + '\n')
@@ -1249,11 +1386,11 @@ def ejecutar(cfg, progreso=None, cancelar=None):
 def main():
     aqui = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(
-        description='Zero tide + 6 interpolaciones + modelo paramétrico (Ec. 18) con R² ajustado. '
+        description='Zero tide + 6 interpolaciones + modelo paramétrico con R² ajustado. '
                     'Para la interfaz gráfica ejecute interfaz_modelo_parametrico.py',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     ap.add_argument('--puntos', default=os.path.join(aqui, 'coords_QGEOID2023.txt'),
-                    help='archivo de puntos GNSS/nivelación')
+                    help='archivo de Puntos Red Nacional de Nivelación')
     ap.add_argument('--malla', action='append',
                     help='malla de N (repetible). Por defecto QGeoidCOL2023.txt y coords_EGM2008.txt')
     ap.add_argument('--orden-malla', action='append', choices=('lat,lon', 'lon,lat'),
@@ -1265,7 +1402,8 @@ def main():
     ap.add_argument('--marea-H', help='sistema de mareas de H')
     ap.add_argument('--marea-malla', action='append', help='sistema de mareas de cada malla (repetible)')
     ap.add_argument('--modelo', choices=('18', '23'), default='18',
-                    help='18: δH + 2 inclinaciones (paper Ec. 18); 23: superficie de 4 parámetros')
+                    help='18: modelo de desplazamiento e inclinación (δH, x1, x2); '
+                         '23: superficie de corrección de 4 parámetros')
     ap.add_argument('--umbral-mad', type=float, default=5.0,
                     help='R6: rechazo si |l - mediana| > umbral · σ_robusta')
     ap.add_argument('--idw-p', type=float, default=2.0)

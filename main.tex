@@ -1,0 +1,1644 @@
+\documentclass[11pt,letterpaper]{article}
+
+% --- PAQUETES DE DISEÑO ---
+\usepackage[utf8]{inputenc}
+% es-nodecimaldot evita el conflicto de babel-español con siunitx
+\usepackage[spanish, es-tabla, es-nodecimaldot]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{xurl}          % corta las URLs largas para que no se salgan del margen
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{subcaption}
+\usepackage[authoryear,round]{natbib}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
+\usepackage{adjustbox}
+\geometry{top=2cm, bottom=2.5cm, left=2.2cm, right=2.2cm}
+% Evita que identificadores largos en \texttt se salgan del margen.
+\emergencystretch=2.5em
+
+% --- COLORES ---
+\usepackage{xcolor}
+\definecolor{mainBlue}{RGB}{0, 32, 96}
+\definecolor{lightGray}{RGB}{240, 240, 240}
+
+% --- TÍTULOS Y SECCIONES ---
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{mainBlue}}{\thesection.}{0.5em}{}[\titlerule]
+
+% --- CAJAS Y CÓDIGO ---
+\usepackage{tcolorbox}
+
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    backgroundcolor=\color{lightGray!50},
+    frame=single,
+    rulecolor=\color{mainBlue!20},
+    columns=fullflexible,
+    breaklines=true,
+    breakatwhitespace=true,
+    showstringspaces=false,
+    xleftmargin=10pt,
+    xrightmargin=6pt,
+    inputencoding=utf8,
+}
+
+\newtcolorbox{analisisBox}[1]{
+    colback=lightGray!30, colframe=mainBlue, fonttitle=\bfseries,
+    title=#1, arc=0pt, outer arc=0pt, width=\linewidth,
+    left=4pt, right=4pt
+}
+
+
+% siunitx: separador de miles con espacio fino, coma decimal
+\sisetup{group-separator={\,}, output-decimal-marker={,}, group-minimum-digits=4, group-digits=integer}
+
+\hypersetup{colorlinks=true, linkcolor=mainBlue, urlcolor=mainBlue, citecolor=mainBlue,
+            breaklinks=true}
+
+% --- INICIO DEL DOCUMENTO ---
+\begin{document}
+% babel-spanish activa "<" y ">" como atajos para comillas latinas;
+% eso choca con listings y con la sintaxis >={...} de TikZ.
+\shorthandoff{<>"}
+
+% --- ENCABEZADO COMPACTO ---
+\begin{center}
+    {\color{mainBlue}\hrule height 1.5pt}
+    \vspace{0.4cm}
+    {\Large \textbf{\texttt{Ejercicio No.\ 3:}\\
+    \vspace{0.4cm}
+    Modelo QGeoidCOL2023\\
+    \vspace{0.15cm}
+    \large Interpolación de la anomalía de altura y determinación de la altura normal}} \\
+    \vspace{0.2cm}
+    Grupo 2 \\
+    \vspace{0.4cm}
+    {\large \textit{Sistemas de Posicionamiento Geodésico}}\\
+    {\large \textit{Maestría en Ciencias de la Información y las Comunicaciones \\ Énfasis en Geomática\\ 2026-3}} \\
+    \vspace{0.4cm}
+    {\color{mainBlue!30}\hrule height 0.8pt}
+    \vspace{0.2cm}
+
+    \begin{tabular}{cc}
+        \textbf{Autor 1} & \textbf{Autor 2} \\[0.2cm]
+        Angie Tatiana Díaz & Natalia Lizeth Rodríguez \\[0.1cm]
+        \footnotesize \texttt{atdiazl@udistrital.edu.co} &
+        \footnotesize \texttt{nlrodriguezv@udistrital.edu.co} \\[0.5cm]
+        \textbf{Autor 3} & \textbf{Autor 4} \\[0.2cm]
+        Julián Santiago López & Argenis Alexandra Daza Roa \\[0.1cm]
+        \footnotesize \texttt{jslopezc@udistrital.edu.co} &
+        \footnotesize \texttt{aadazar@udistrital.edu.co}
+    \end{tabular}
+
+    \vspace{0.5cm}
+    \small \textbf{Docente:} John Alexander Orduña Díaz \quad|\quad \textbf{Fecha:} \today
+    \vspace{0.2cm}
+    {\color{mainBlue}\hrule height 1.5pt}
+\end{center}
+
+\begin{abstract}
+\noindent
+Se desarrolló en MATLAB una herramienta con interfaz gráfica
+(\texttt{appQGeoidCOL2023.m}) que lee y valida la malla oficial \textbf{QGeoidCOL2023},
+interpola la anomalía de altura $\zeta$ en cualquier punto dentro de su cobertura y
+calcula la altura normal $H^N=h-\zeta$. La malla (\num{32224} nodos, $212\times152$, paso
+de $5'$, $\approx\SI{9.2}{km}$) superó todos los controles de calidad: datos numéricos y
+finitos, sin duplicados ni nodos faltantes, rectangular y regular con desviaciones del
+paso del orden de $10^{-14}$ grados. Se implementaron y compararon \textbf{seis métodos}:
+vecino más cercano, lineal por triángulos, bilineal, bicúbica (convolución cúbica),
+IDW y kriging ordinario. Cada uno reporta de forma explícita los nodos que usa, sus pesos y sus
+contribuciones, y verifica que los pesos sumen uno. Ninguno extrapola fuera de la malla.
+Las implementaciones del vecino más cercano, la bilineal y la bicúbica coinciden con
+\texttt{interp2} de MATLAB a nivel de $10^{-14}$\,m. En cinco puntos de control con altura
+elipsoidal, altura nivelada y valores de GeoCol2004 y EGM2008 (archivo de puntos del grupo),
+los métodos (excepto el vecino más cercano) difieren entre sí entre \SI{21}{mm} y \SI{83}{mm}; el vecino más
+cercano se aparta hasta \SI{25}{cm}. Una validación cruzada por decimación de la malla ubica a la
+bicúbica como el método de menor error (RMSE de \SI{58}{mm} con paso de prueba de $10'$),
+seguida de la bilineal y la lineal por triángulos (\SI{87}{mm} y \SI{89}{mm}). La diferencia
+QGeoidCOL2023 $-$ GeoCol2004 ($\zeta-N$) es negativa en los cinco puntos, de \SI{-0.73}{m} a
+\SI{-4.07}{m} (media \SI{-2.14}{m}), y no se explica por la separación geoide--cuasigeoide sino por
+el sesgo de GeoCol2004, cuya diferencia media con la nivelación en estos puntos (\SI{-2.1}{m}) es del
+orden de la documentada para ese modelo. Frente a EGM2008 (ondulación geoidal), la diferencia va de
+\SI{-21}{cm} a \SI{+70}{cm} (RMS de \SI{36}{cm}). Como control altimétrico, en los tres puntos
+bajos (P1, P2 y P5) la altura normal calculada con QGeoidCOL2023 difiere de la altura nivelada en
+\SI{-1.8}{cm}, \SI{+15.9}{cm} y \SI{+1.0}{cm} (RMS de \SI{9}{cm}), frente a \SI{47}{cm} con EGM2008 y
+\SI{112}{cm} con GeoCol2004. En los dos puntos de montaña (P3 y P4) las diferencias con la
+nivelación son de \SI{+65}{cm} y \SI{-62}{cm}, de magnitud similar a las de EGM2008.
+\end{abstract}
+
+\tableofcontents
+\vspace{0.6cm}
+
+% =====================================================================
+\section{Introducción}
+% =====================================================================
+
+El posicionamiento GNSS entrega alturas \emph{elipsoidales} $h$, referidas a una
+superficie matemática (el elipsoide GRS80 en MAGNA-SIRGAS) que no tiene significado
+físico: el agua no fluye necesariamente de una $h$ mayor a una menor. Las alturas de uso
+práctico en ingeniería, hidrología y cartografía deben estar referidas al campo de
+gravedad terrestre. Para convertir una $h$ en una altura física se necesita conocer la
+separación entre el elipsoide y la superficie de referencia vertical correspondiente: la
+\emph{ondulación geoidal} $N$ si la altura es ortométrica, o la \emph{anomalía de altura}
+$\zeta$ si la altura es normal \citep{hofmannmoritz2006,torgemuller2012}.
+
+\textbf{QGeoidCOL2023} es el modelo cuasigeoidal oficial de Colombia, adoptado por el
+IGAC en 2026 como reemplazo de GeoCol2004 \citep{igacnoticia}. Es un cuasigeoide gravimétrico
+calculado por el DGFI-TUM con el IGAC a partir de gravedad terrestre y aerotransportada, altimetría
+satelital sobre el mar (DTU21GRA), un modelo global de fondo y modelos topográficos de muy alta
+resolución, con funciones de base radial esféricas \citep{liu2024,isg}. Sus anomalías de altura se
+calculan en el sistema de marea cero, respecto al elipsoide GRS80 y con el potencial convencional
+$W_0=\SI{62636853.4}{m^2/s^2}$ del Sistema Internacional de Referencia de Alturas (IHRS), y se
+distribuyen en una malla de $5'$ \citep{liu2024,isg}. Con 3025 puntos GPS/nivelación, los autores
+reportan una desviación estándar de las diferencias de \SI{21.3}{cm} y de \SI{15.8}{cm} tras ajustar
+una superficie de corrección de siete parámetros \citep{liu2024}. Con el modelo, la altura normal de
+un punto se obtiene directamente de la altura elipsoidal medida con GNSS:
+\begin{equation}
+H^N = h - \zeta.
+\label{eq:hn}
+\end{equation}
+Este procedimiento, conocido como \emph{nivelación GNSS}, reemplaza en muchos casos la
+nivelación geométrica, que es más costosa y lenta. Su exactitud depende de la calidad del
+modelo y del método con que se interpola $\zeta$ entre los nodos de la malla: con un paso
+de $5'$ ($\approx\SI{9}{km}$), en zonas de topografía abrupta la forma de interpolar puede
+cambiar el resultado en centímetros.
+
+En este ejercicio se implementó una herramienta que carga y valida la malla, interpola
+$\zeta$ con seis métodos, reporta los nodos, pesos y contribuciones de cada uno, calcula
+$H^N$, controla la cobertura para no extrapolar y compara los métodos entre sí. También se
+contrastan los resultados con los modelos GeoCol2004 y EGM2008 en cinco puntos del
+territorio colombiano.
+
+% =====================================================================
+\section{Objetivos}
+% =====================================================================
+\subsection{Objetivo general}
+Implementar una herramienta computacional para la lectura, validación, interpolación y
+representación gráfica del modelo QGeoidCOL2023, que permita analizar la anomalía de
+altura $\zeta$ y su aplicación en la relación entre la altura elipsoidal $h$ y la altura
+normal $H^N$.
+
+\subsection{Objetivos específicos}
+\begin{itemize}
+    \item Cargar el archivo \texttt{QGeoidCOL2023.TXT}, reconstruir la malla y validar su
+    estructura: datos finitos, coordenadas válidas, duplicados, nodos faltantes,
+    regularidad, dimensiones, resolución y cobertura.
+    \item Implementar seis métodos de interpolación (vecino más cercano, lineal por
+    triángulos, bilineal, bicúbica, IDW y kriging ordinario) que reporten de forma explícita
+    los nodos usados, sus pesos y sus contribuciones, y verificar que la suma de pesos sea uno.
+    \item Impedir la extrapolación fuera de la cobertura y declarar, sin sustituirlo por
+    otro, cuándo un método no puede aplicarse por falta de soporte espacial.
+    \item Calcular $H^N=h-\zeta$ conservando la precisión numérica y declarando el criterio
+    de redondeo de la presentación.
+    \item Construir una visualización general de la malla y una vista local del campo
+    interpolado, con los nodos usados y la geometría de soporte de cada método.
+    \item Cuantificar las diferencias entre métodos en metros, centímetros y milímetros en
+    cinco puntos distribuidos en Colombia, y evaluar su desempeño mediante validación
+    cruzada y un análisis de sensibilidad de parámetros.
+    \item Comparar QGeoidCOL2023 con GeoCol2004 y EGM2008 en los mismos cinco puntos, tras
+    verificar la compatibilidad conceptual de las magnitudes de cada modelo.
+\end{itemize}
+
+% =====================================================================
+\section{Datos y control de calidad}
+\label{sec:datos}
+% =====================================================================
+
+\subsection{Estructura del archivo}
+El archivo \texttt{QGeoidCOL2023.TXT} no tiene encabezado y contiene \num{32224} líneas,
+cada una con tres columnas numéricas separadas por espacios (Tabla~\ref{tab:notacion}).
+Viene ordenado por filas de latitud decreciente (de norte a sur) y, dentro de cada fila,
+por longitud creciente (de oeste a este). La herramienta no depende de ese orden, porque
+reconstruye la malla a partir de los índices de cada nodo.
+
+\begin{table}[H]
+\centering
+\caption{Columnas de QGeoidCOL2023.TXT y notación adoptada.}
+\label{tab:notacion}
+\begin{tabular}{@{}clll@{}}
+\toprule
+Col. & Variable & Notación & Unidad \\
+\midrule
+1 & Latitud geodésica del nodo & $\varphi$ & grados decimales (+N) \\
+2 & Longitud geodésica del nodo & $\lambda$ & grados decimales ($-$ al oeste) \\
+3 & Anomalía de altura & $\zeta$ & m \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Controles de calidad}
+La función \texttt{cargarYValidarMalla} aplica los controles en el orden de la
+Tabla~\ref{tab:qc}. Cada control remueve los registros que detecta antes de pasar al
+siguiente y deja registrado el criterio que usó, de modo que un conteo en cero significa
+``se verificó y no había nada que corregir'' y no ``no se revisó''.
+
+\begin{table}[H]
+\centering
+\caption{Controles de calidad aplicados sobre QGeoidCOL2023.TXT.}
+\label{tab:qc}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}p{3.4cm}p{7.6cm}r@{}}
+\toprule
+Control & Criterio & Resultado \\
+\midrule
+Datos numéricos & Cada línea tiene exactamente 3 números (\texttt{sscanf}) & 0 líneas inválidas \\
+Valores finitos & Ningún \texttt{NaN} ni \texttt{Inf} & 0 \\
+Rango geográfico & $|\varphi|\le\ang{90}$ y $|\lambda|\le\ang{180}$ & 0 fuera de rango \\
+Duplicados & Misma posición de nodo repetida (y, aparte, con $\zeta$ distinta) & 0 (0) \\
+Regularidad & Paso constante en $\varphi$ y en $\lambda$ (tolerancia $10^{-7}$ grados) & Sí \\
+Dimensiones & Valores únicos de $\varphi$ y $\lambda$ & $212\times152=\num{32224}$ \\
+Nodos faltantes & Posiciones de la malla rectangular sin dato & 0 \\
+Plausibilidad & $|\zeta|>\SI{150}{m}$ (no ocurre en la Tierra) & 0 \\
+\midrule
+\multicolumn{2}{l}{\textbf{Nodos válidos}} & \textbf{\num{32224} / \num{32224}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las coordenadas del archivo se escriben con representación binaria imprecisa (por ejemplo,
+\texttt{12.800000000000001}). Para agruparlas se usó \texttt{uniquetol} con tolerancia de
+$10^{-9}$ grados ($\approx\SI{0.1}{mm}$), que conserva los valores reales del archivo en
+lugar de redondearlos de antemano. Así, las desviaciones que se reportan corresponden a los
+datos y no a un artificio del redondeo: la desviación máxima del paso es de
+$\num{2.2e-15}$ grados en latitud y $\num{2.8e-14}$ grados en longitud, y la de las
+coordenadas frente a la malla nominal es de $\num{1.4e-14}$ grados.
+
+\subsection{Resolución, cobertura y estadísticas}
+\begin{table}[H]
+\centering
+\caption{Características de la malla reconstruida.}
+\label{tab:malla}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Característica & Valor \\
+\midrule
+Dimensiones & 212 filas (latitud) $\times$ 152 columnas (longitud) \\
+Paso & $\Delta\varphi=\Delta\lambda=\ang{0.0833333333}=5'$ \\
+Resolución métrica (latitud media, GRS80) & \SI{9.215}{km} (N--S) $\times$ \SI{9.254}{km} (E--O) \\
+Cobertura en latitud & $\ang{-4.783333}$ a $\ang{12.800000}$ \\
+Cobertura en longitud & $\ang{-79.300000}$ a $\ang{-66.716667}$ \\
+Extensión aproximada & \SI{1944}{km} (N--S) $\times$ \SI{1397}{km} (E--O) \\
+$\zeta$ mínima & \SI{-39.949}{m} en $(\ang{12.7167},\ang{-66.7167})$ \\
+$\zeta$ máxima & \SI{33.425}{m} en $(\ang{3.8000},\ang{-75.9667})$ \\
+$\zeta$ media y desviación estándar & \SI{6.927}{m} y \SI{13.685}{m} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La Figura~\ref{fig:malla} muestra el campo de $\zeta$. Los valores máximos (más de
+\SI{30}{m}) siguen el eje de las cordilleras Central y Occidental, mientras que los
+mínimos (hasta \SI{-40}{m}) aparecen en el Caribe nororiental. Esto es coherente con
+el hecho de que las anomalías de altura reflejan la distribución de masas. El histograma
+es bimodal: una moda cerca de \SI{20}{m}, que corresponde a la Orinoquía, la Amazonía y la
+región andina, y otra cerca de \SI{-5}{m}, que corresponde a la región Caribe.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.51\linewidth}
+\centering
+\includegraphics[width=\linewidth]{figuras/malla_general.png}
+\caption{Campo de $\zeta$ con isolíneas cada \SI{5}{m}.}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.45\linewidth}
+\centering
+\includegraphics[width=\linewidth]{figuras/histograma_zeta.png}
+\caption{Histograma de los \num{32224} nodos.}
+\end{subfigure}
+\caption{Malla QGeoidCOL2023 reconstruida. El rectángulo negro es el límite de cobertura:
+fuera de él la herramienta no interpola.}
+\label{fig:malla}
+\end{figure}
+
+\subsection{Puntos de control}
+Para las comparaciones se usaron cinco puntos del archivo \texttt{5 PUNTOS CALCULADOS COLOMBIA.xlsx}
+entregado al grupo (Tabla~\ref{tab:puntos}). Para cada punto el archivo trae la altura elipsoidal $h$,
+la altura $H$ de la nivelación geométrica (altura nivelada y ajustada por mínimos cuadrados, con el
+año de cálculo; no se clasifica como ortométrica ni como normal) y los valores de cada modelo: la
+ondulación geoidal $N$ de GeoCol2004 y de EGM2008 y la anomalía de altura $\zeta$ de QGeoidCOL2023.
+Según el grupo, los valores de GeoCol2004 y de QGeoidCOL2023 se extrajeron del software MAGNA 7.0 y los de
+EGM2008 de la calculadora de UNAVCO/EarthScope. Los puntos están en la Guajira (P1), Córdoba (P2),
+Norte de Santander, en la cordillera Oriental (P3), Bogotá (P4) y los llanos de Arauca, en la Orinoquía
+(P5), según su ubicación aproximada (Figura~\ref{fig:puntos}). Cubren alturas elipsoidales de
+\SI{35}{m} a \SI{3229}{m} y valores de $\zeta$ de \SI{-13.3}{m} a \SI{+23.4}{m}, frente a un rango de
+\SIrange{-39.9}{33.4}{m} de la malla. Quedan, sin embargo, todos al norte de \ang{4.6} N: no hay puntos
+en la Amazonía, el Pacífico ni el sur del país, de modo que las conclusiones no deben extrapolarse
+a todo el territorio (Sección~\ref{sec:analisis}).
+
+\begin{table}[H]
+\centering
+\caption{Puntos de control (archivo \texttt{5 PUNTOS CALCULADOS COLOMBIA.xlsx}).}
+\label{tab:puntos}
+\small
+\begin{tabular}{@{}llrrrc@{}}
+\toprule
+Id & Nomenclatura & $\varphi$ (grados) & $\lambda$ (grados) & $h$ (m) & $H$ nivelada (m) \\
+\midrule
+P1 & 32-TN-7 & \num{11.4519608895} & \num{-72.5744326992} & \num{35.134} & \num{48.43433} (2021) \\
+P2 & 23555011 & \num{8.4311028480} & \num{-75.5530108810} & \num{98.266} & \num{95.57344} (2021) \\
+P3 & GPS-S-T-144 & \num{7.3110555110} & \num{-72.8720174438} & \num{3228.966} & \num{3216.550} (2005) \\
+P4 & (EA)-MACARENA-CD-551-1 & \num{4.6149699549} & \num{-74.0628738019} & \num{2725.381} & \num{2702.640} (2001) \\
+P5 & 81794007 & \num{6.2760436758} & \num{-71.6514462724} & \num{185.792} & \num{184.956} (2019) \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.1cm}
+\footnotesize Entre paréntesis, el año de cálculo de la nivelación que figura en el archivo.
+Todos los puntos están dentro de la cobertura de la malla y ninguno cae en una celda de borde.
+\end{table}
+
+\noindent\textbf{Marco de referencia y fuentes.} Las coordenadas y las alturas elipsoidales $h$ están
+referidas a MAGNA-SIRGAS, y la época de $h$ es la misma de las coordenadas. Los valores de GeoCol2004 y de
+QGeoidCOL2023 se extrajeron de MAGNA 7.0 (versión 7.0, la primera del software) y los de EGM2008 de la calculadora de
+UNAVCO. Los valores del archivo se tratan como dato de entrada del grupo y se verifican de forma
+independiente en la Sección~\ref{sec:modelos}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.62\linewidth]{figuras/malla_puntos.png}
+\caption{Ubicación de los cinco puntos de control sobre la malla QGeoidCOL2023.}
+\label{fig:puntos}
+\end{figure}
+
+% =====================================================================
+\section{Marco conceptual}
+\label{sec:marco}
+% =====================================================================
+
+\subsection{Superficies de referencia y alturas}
+\label{sec:alturas}
+\begin{itemize}
+    \item \textbf{Elipsoide} (GRS80 en MAGNA-SIRGAS): superficie geométrica de referencia
+    para las coordenadas $(\varphi,\lambda,h)$. La altura elipsoidal $h$ es la distancia a
+    lo largo de la normal al elipsoide y es lo que mide directamente el GNSS.
+    \item \textbf{Geoide}: superficie equipotencial del campo de gravedad terrestre que mejor se
+    ajusta al nivel medio del mar. La altura \textbf{ortométrica} $H$ se mide desde el
+    geoide a lo largo de la línea de la plomada, y su separación del elipsoide es la
+    ondulación geoidal $N$. Para calcular $H$ se necesita la gravedad media a lo largo de la plomada,
+    \emph{dentro} de las masas topográficas, que no puede observarse y debe suponerse
+    (por ejemplo, con la aproximación de Helmert).
+    \item \textbf{Cuasigeoide}: superficie que no es equipotencial y que está a una
+    distancia $\zeta$ del elipsoide. La altura \textbf{normal} $H^N$ de Molodensky se calcula
+    con la gravedad \emph{normal} media, que se obtiene de la fórmula de la gravedad normal sin
+    ninguna hipótesis sobre la densidad de la corteza. En este punto está su principal ventaja
+    frente a la altura ortométrica \citep{hofmannmoritz2006}.
+\end{itemize}
+
+Las dos descomposiciones de la altura elipsoidal son
+\begin{equation}
+h = H + N = H^N + \zeta,
+\label{eq:alturas}
+\end{equation}
+de donde la separación entre geoide y cuasigeoide resulta
+\begin{equation}
+N-\zeta = H^N - H \approx \frac{\Delta g_B}{\bar{\gamma}}\,H,
+\label{eq:nzeta}
+\end{equation}
+con $\Delta g_B$ la anomalía de Bouguer y $\bar\gamma$ la gravedad normal media
+\citep{hofmannmoritz2006}. En zonas bajas esta separación es de milímetros, pero en
+montañas con anomalías de Bouguer de cientos de mGal puede alcanzar decímetros. Por eso
+\textbf{$N$ y $\zeta$ no son magnitudes intercambiables} y compararlas directamente
+(Sección~\ref{sec:modelos}) exige declarar esa diferencia conceptual.
+
+\subsection{Interpolación sobre la malla: notación común}
+Para un punto $P=(\varphi,\lambda)$, todos los métodos implementados producen una
+combinación lineal de los valores de la malla:
+\begin{equation}
+\hat\zeta(P)=\sum_{i\in S(P)} w_i\,\zeta_i,
+\qquad \sum_{i\in S(P)} w_i = 1,
+\label{eq:combinacion}
+\end{equation}
+donde $S(P)$ es el conjunto de nodos de soporte y $w_i$ sus pesos. La
+\emph{contribución} de cada nodo es $w_i\zeta_i$. Que los pesos sumen uno garantiza que
+una superficie constante se reproduzca exactamente, y la herramienta lo verifica en cada
+cálculo. Para los métodos sobre la malla se define la celda
+$[\varphi_i,\varphi_{i+1}]\times[\lambda_j,\lambda_{j+1}]$ que contiene a $P$ y sus
+coordenadas normalizadas
+\begin{equation}
+u=\frac{\lambda-\lambda_j}{\lambda_{j+1}-\lambda_j},\qquad
+v=\frac{\varphi-\varphi_i}{\varphi_{i+1}-\varphi_i},\qquad u,v\in[0,1].
+\label{eq:uv}
+\end{equation}
+Las esquinas de la celda se denotan SW $(i,j)$, SE $(i,j+1)$, NE $(i+1,j+1)$ y NW
+$(i+1,j)$.
+
+\subsection{Vecino más cercano}
+Asigna a $P$ el valor del nodo más próximo: $|S|=1$ y $w=1$. La distancia se mide en
+metros sobre la proyección Origen-Nacional, aunque en una malla regular el nodo más cercano
+siempre es una de las cuatro esquinas de la celda, así que el resultado coincide con
+\texttt{interp2(...,'nearest')}. El campo resultante es discontinuo, con escalones en
+las mediatrices entre nodos.
+
+\subsection{Lineal por triángulos}
+La celda se divide en dos triángulos y, dentro del triángulo que contiene a $P$, $\zeta$
+se interpola sobre un plano. Los pesos son las coordenadas baricéntricas:
+\begin{equation}
+(w_{SW},w_{SE},w_{NE}) = (1-u,\;u-v,\;v)\quad\text{si } u\ge v;\qquad
+(w_{SW},w_{NE},w_{NW}) = (1-v,\;u,\;v-u)\quad\text{si } u<v.
+\label{eq:triangulos}
+\end{equation}
+\textbf{Decisión metodológica:} la celda se divide \emph{siempre} por la diagonal SW--NE.
+En una malla cuadrada los cuatro vértices de cada celda son cocirculares, por lo que la
+triangulación de Delaunay no es única: \texttt{scatteredInterpolant} elegiría la diagonal
+según detalles numéricos y el resultado dejaría de ser reproducible. El campo es continuo
+($C^0$), pero tiene quiebres sobre las aristas.
+
+\subsection{Bilineal}
+Usa las cuatro esquinas de la celda:
+\begin{equation}
+\hat\zeta = (1-u)(1-v)\,\zeta_{SW} + u(1-v)\,\zeta_{SE} + uv\,\zeta_{NE} + (1-u)v\,\zeta_{NW}.
+\label{eq:bilineal}
+\end{equation}
+Es el método habitual para consultar mallas geoidales oficiales. Es continuo, exacto en
+los nodos y fácil de verificar a mano, pero la derivada es discontinua en las aristas
+de las celdas.
+
+\subsection{Bicúbica (convolución cúbica)}
+Usa los $4\times4=16$ nodos alrededor de la celda, con pesos separables
+$w_{kl}=w^{\varphi}_k\,w^{\lambda}_l$ obtenidos del núcleo de convolución cúbica de
+\citet{keys1981}:
+\begin{equation}
+W(s)=\begin{cases}
+(a+2)|s|^3-(a+3)|s|^2+1, & |s|\le1,\\
+a|s|^3-5a|s|^2+8a|s|-4a, & 1<|s|<2,\\
+0, & |s|\ge2,
+\end{cases}
+\qquad a=-0{,}5,
+\label{eq:keys}
+\end{equation}
+evaluado en las distancias normalizadas $s=\{u+1,\,u,\,1-u,\,2-u\}$ (y análogamente con
+$v$). Con $a=-0{,}5$ el núcleo es el mismo que usa \texttt{interp2(...,'cubic')} en mallas
+uniformes, lo que permitió validar la implementación (Sección~\ref{sec:autoverif}). Algunos
+pesos son negativos, por los lóbulos del núcleo, pero cada vector unidimensional suma uno.
+\textbf{Limitación:} necesita un nodo adicional a cada lado de la celda. En las celdas del
+borde exterior de la malla el método se declara \emph{no aplicable}, con su causa, y no se
+reemplaza por otro método.
+
+\subsection{IDW (distancia inversa ponderada)}
+\begin{equation}
+w_i=\frac{d_i^{-p}}{\sum_{k\in S}d_k^{-p}},
+\label{eq:idw}
+\end{equation}
+con $S$ los $k$ nodos más cercanos a $P$ y $d_i$ la distancia en la proyección
+Origen-Nacional (EPSG:9377). Valores por defecto: $p=2$, $k=16$. Como los pesos se
+normalizan, el factor de escala de la proyección se cancela, y la distancia proyectada es
+equivalente a la distancia geodésica a la escala de unos pocos kilómetros. Si $P$ coincide
+con un nodo (a menos de \SI{1}{mm}), ese nodo recibe peso~1. El IDW no reproduce gradientes:
+el valor interpolado siempre queda dentro del rango de los nodos vecinos y tiende a
+``aplanar'' el campo hacia su media local.
+
+\subsection{Kriging ordinario}
+Los pesos minimizan la varianza del error de predicción bajo la condición de
+insesgamiento $\sum\lambda_i=1$:
+\begin{equation}
+\begin{pmatrix}\boldsymbol{\Gamma} & \mathbf{1}\\ \mathbf{1}^T & 0\end{pmatrix}
+\begin{pmatrix}\boldsymbol{\lambda}\\ \mu\end{pmatrix}=
+\begin{pmatrix}\boldsymbol{\gamma}_0\\ 1\end{pmatrix},
+\qquad
+\sigma^2_{KO}=\boldsymbol{\lambda}^T\boldsymbol{\gamma}_0+\mu,
+\label{eq:ko}
+\end{equation}
+donde $\boldsymbol\Gamma$ contiene las semivarianzas entre los $n$ nodos vecinos y
+$\boldsymbol\gamma_0$ las semivarianzas entre cada nodo y $P$ \citep{cressie1993}. El
+semivariograma experimental se ajusta por mínimos cuadrados ponderados por el número de
+pares, eligiendo entre los modelos esférico, exponencial, gaussiano y circular, igual que
+en el Ejercicio~2. Se tomaron tres decisiones propias de este ejercicio:
+\begin{enumerate}
+    \item \textbf{Variograma local.} $\zeta$ tiene tendencias regionales de decenas de
+    metros, así que un variograma global no representaría la variabilidad a la escala de la
+    interpolación. Por eso el semivariograma se ajusta, para cada punto, con los nodos de una
+    ventana de $2s\times2s$ nodos (semiancho por defecto $s=6$, es decir, 144 nodos,
+    $\approx\pm\SI{55}{km}$).
+    \item \textbf{$\gamma(0)=0$.} El efecto pepita es un salto en $h\to0^+$, no el valor en
+    el origen. Así el kriging es exacto en los nodos y la diagonal de $\boldsymbol\Gamma$ es
+    nula.
+    \item \textbf{Sin muestreo aleatorio de pares}: se usan todos los pares de la ventana para
+    que el ajuste sea reproducible.
+\end{enumerate}
+El sistema se resuelve con los $n=16$ vecinos más cercanos.
+
+\subsection{Cobertura y no extrapolación}
+Antes de aplicar cualquier método se comprueba que $P$ esté dentro del rectángulo de la
+malla (límites incluidos). Si no lo está, no se calcula ningún valor y se informa
+``fuera de cobertura''. Además, cada método valida su propio soporte: la bicúbica, por
+ejemplo, no es aplicable en las celdas del borde exterior. Ningún resultado se sustituye en
+silencio por el de otro método.
+
+% =====================================================================
+\section{Procedimiento}
+\label{sec:procedimiento}
+% =====================================================================
+
+\subsection{Flujo de trabajo}
+\begin{center}\small
+\fbox{\parbox{0.92\linewidth}{\centering
+\textbf{1.} Cargar QGeoidCOL2023.TXT $\;\rightarrow\;$
+\textbf{2.} Validar y reconstruir la malla $\;\rightarrow\;$
+\textbf{3.} Autoverificar contra \texttt{interp2} $\;\rightarrow\;$
+\textbf{4.} Ingresar punto(s) $(\varphi,\lambda,h)$ $\;\rightarrow\;$
+\textbf{5.} Control de cobertura $\;\rightarrow\;$
+\textbf{6.} Interpolar con el método elegido (nodos, pesos, contribuciones) $\;\rightarrow\;$
+\textbf{7.} $H^N=h-\zeta$ $\;\rightarrow\;$
+\textbf{8.} Vista general y local $\;\rightarrow\;$
+\textbf{9.} Comparación de los seis métodos $\;\rightarrow\;$
+\textbf{10.} Validación cruzada y sensibilidad $\;\rightarrow\;$
+\textbf{11.} Comparación con GeoCol2004 y EGM2008 $\;\rightarrow\;$
+\textbf{12.} Exportación (CSV, TXT, PNG)
+}}
+\end{center}
+
+\subsection{Arquitectura del código}
+\begin{sloppypar}
+La herramienta es un archivo único y autocontenido (\texttt{appQGeoidCOL2023.m},
+Anexo~\ref{anx:codigo}) que no depende del Mapping Toolbox ni del Statistics Toolbox.
+Reutiliza la arquitectura de la aplicación del Ejercicio~2: interfaz \texttt{uifigure}, estado en
+\texttt{fig.UserData}, bitácora, proyección \texttt{proyectarOrigenNacional} y kriging
+por mínimos cuadrados ponderados. Lo que cambia es el cargue de datos, la validación y los
+métodos, que se adaptaron a una malla regular. El núcleo es
+\texttt{interpolarPunto}: cada método (\texttt{pesosVecinoMasCercano},
+\texttt{pesosTriangulos}, \texttt{pesosBilineal}, \texttt{pesosBicubica},
+\texttt{pesosIDW}, \texttt{pesosKriging}) devuelve únicamente los \emph{índices de los
+nodos y sus pesos}, y $\hat\zeta=\sum w_i\zeta_i$ se calcula en un solo lugar, igual para
+todos los métodos. Así, la tabla de nodos, pesos y contribuciones y la verificación
+$\sum w_i=1$ salen del mismo cálculo que produce el resultado y no de un cálculo aparte.
+\end{sloppypar}
+
+\begin{lstlisting}[language=Matlab, caption={Núcleo común: suma ponderada, suma de pesos y tabla de nodos (fragmento de \texttt{interpolarPunto}).}]
+z = M.Z(sub2ind(size(M.Z), iLat, iLon));
+if any(isnan(z(w ~= 0)))
+    res.motivo = 'Soporte incompleto: falta en la malla al menos un nodo con peso no nulo.';
+    return
+end
+res.zeta = sum(w .* zc);
+res.sumaPesos = sum(w);
+res.nodos = table((1:numel(w)).', M.lat(iLat), M.lon(iLon), z, w, w .* z, d, ...);
+\end{lstlisting}
+
+\begin{lstlisting}[language=Matlab, caption={Pesos de la interpolación lineal por triángulos con diagonal fija SW--NE (\texttt{pesosTriangulos}).}]
+[i, j, u, v] = ubicarCelda(M, lat0, lon0);
+if u >= v   % triangulo SW-SE-NE
+    iLat = [i; i; i+1]; iLon = [j; j+1; j+1]; w = [1-u; u-v; v];
+else        % triangulo SW-NE-NW
+    iLat = [i; i+1; i+1]; iLon = [j; j+1; j]; w = [1-v; u; v-u];
+end
+\end{lstlisting}
+
+\subsection{Parámetros y decisiones metodológicas}
+\begin{table}[H]
+\centering
+\caption{Parámetros y decisiones de la implementación.}
+\label{tab:parametros}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{3.6cm}p{11.6cm}@{}}
+\toprule
+Aspecto & Decisión y justificación \\
+\midrule
+Métrica & Los métodos sobre la malla operan con índices $(u,v)$. IDW y kriging usan
+distancias en Origen-Nacional (EPSG:9377, GRS80, $k_0=0{,}9992$), en km. \\
+Lineal por triángulos & Diagonal fija SW--NE (resultado reproducible). \\
+Bicúbica & Keys, $a=-0{,}5$. No aplicable en la celda de borde (sin sustitución). \\
+IDW & $p=2$, $k=16$ nodos más cercanos. \\
+Kriging & Variograma local (semiancho de 6 nodos, 12 rezagos), $n=16$ vecinos,
+$\gamma(0)=0$ y se reporta el \texttt{rcond} del sistema. \\
+Cobertura & Rectángulo de la malla. Fuera de él no se calcula nada. \\
+Precisión & Doble precisión en todo el cálculo. Los CSV se exportan sin redondear. \\
+Redondeo de presentación & $\zeta$ y $H^N$ a \SI{0.001}{m} (\SI{1}{mm}, la resolución con que viene
+$\zeta$ en el archivo); pesos a $10^{-6}$; contribuciones a $10^{-4}$\,m. \\
+Reproducibilidad & Sin pasos aleatorios sin semilla. La validación cruzada y la autoverificación
+usan \texttt{RandStream} con semilla fija, sin alterar el generador global de MATLAB. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Autoverificación de la implementación}
+\label{sec:autoverif}
+Al cargar la malla, la herramienta compara sus propias implementaciones con las
+funciones de MATLAB en 300 puntos interiores aleatorios (semilla fija) y verifica la suma
+de pesos de los seis métodos (Tabla~\ref{tab:autoverif}). Las diferencias son del orden
+del redondeo de punto flotante, lo que confirma que las fórmulas de las
+ecuaciones~\eqref{eq:bilineal} y~\eqref{eq:keys} están bien implementadas, incluida la
+orientación de la malla.
+
+\begin{table}[H]
+\centering
+\caption{Autoverificación: diferencias máximas frente a \texttt{interp2} y error máximo de la suma de pesos.}
+\label{tab:autoverif}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Método & $\max|\hat\zeta-\hat\zeta_{\texttt{interp2}}|$ (m) & $\max|1-\sum w_i|$ \\
+\midrule
+Vecino más cercano & 0 (\texttt{'nearest'}) & 0 \\
+Lineal por triángulos & --- & \num{1.1e-16} \\
+Bilineal & \num{7.1e-15} (\texttt{'linear'}) & \num{2.2e-16} \\
+Bicúbica & \num{6.8e-14} (\texttt{'cubic'}) & \num{2.3e-15} \\
+IDW & --- & \num{5.6e-16} \\
+Kriging ordinario & --- & \num{4.4e-16} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Validación cruzada por decimación}
+\label{sec:cvmetodo}
+En el Ejercicio~2 se mostró que el \emph{leave-one-out} clásico no sirve para métodos
+exactos de malla: al retirar un nodo y consultar justo en su posición, el peso cae por
+completo sobre el nodo ausente. Para este ejercicio se diseñó una validación adaptada a
+mallas: se construye una malla \emph{decimada} con los nodos de índice impar (paso de
+$10'$) y con ella se predicen 400 nodos retirados, elegidos al azar con semilla 2023. Esos
+nodos quedan en centros de celda y en puntos medios de aristas de la malla decimada. El
+error es $e=\hat\zeta-\zeta_{\text{archivo}}$. Como el paso de prueba es el doble del real,
+los errores son una \textbf{cota conservadora} del error al paso de $5'$ y sirven para
+comparar los métodos entre sí, no como exactitud absoluta del modelo.
+
+% =====================================================================
+\section{Interfaz gráfica}
+\label{sec:interfaz}
+% =====================================================================
+La aplicación se ejecuta con \texttt{appQGeoidCOL2023} y carga automáticamente
+\texttt{QGeoidCOL2023.txt} si está en la misma carpeta; si no, se usa el botón ``Cargar''.
+El panel izquierdo contiene la información del modelo, el selector de método, los
+parámetros de IDW y kriging, el cuadro de puntos (formato \texttt{[Nombre:] lat, lon [, h]})
+y los botones de cálculo, comparación, validación y exportación, además de la bitácora. El panel
+derecho tiene cinco pestañas: malla, consulta y vista local, comparación de métodos,
+validación cruzada y comparación entre modelos (Figuras~\ref{fig:app1}--\ref{fig:app3}).
+En la pestaña de modelos, la tabla de entrada admite la ondulación de GeoCol2004, la de EGM2008 y
+la altura nivelada $H$ (digitadas o importadas de un CSV, como \texttt{valores\_control\_P1\_P5.csv}) y calcula
+las diferencias, las alturas de cada modelo y su diferencia con la nivelación. También existe un modo por lotes
+sin interfaz, \texttt{appQGeoidCOL2023('lote')}, y uno de sensibilidad,
+\texttt{appQGeoidCOL2023('sensibilidad')}, que reproducen los resultados numéricos de este informe;
+\texttt{generarResultadosInforme.m} regenera además las figuras y los archivos de datos (Anexo~\ref{anx:archivos}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figuras/app_01_carga.png}
+\caption{Interfaz recién cargada la malla: vista general de $\zeta$, histograma y bitácora con
+el reporte de validación.}
+\label{fig:app1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figuras/app_02_consulta_kriging.png}
+\caption{Pestaña de consulta con kriging ordinario en P4: vista local con nodos, pesos
+(en azul los negativos) y geometría de soporte; resumen con $\zeta$, $h$, $H^N$, suma de
+pesos y parámetros del variograma; tabla de nodos con su contribución.}
+\label{fig:app2}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figuras/app_04_comparacion.png}
+\caption{Pestaña de comparación de los seis métodos en los cinco puntos, con la bilineal
+como referencia.}
+\label{fig:app3}
+\end{figure}
+
+\subsection{Diagrama de flujo}
+\begin{figure}[H]
+\centering
+\adjustbox{max width=0.98\linewidth}{%
+\begin{tikzpicture}[
+    font=\scriptsize,
+    >={Stealth[length=2mm]},
+    line/.style={->,line width=0.55pt},
+    start/.style={ellipse,draw,fill=gray!15,minimum width=28mm,minimum height=7mm,align=center},
+    io/.style={trapezium,trapezium left angle=70,trapezium right angle=110,draw,fill=orange!12,
+        minimum width=30mm,minimum height=8mm,align=center},
+    proc/.style={rectangle,rounded corners=2pt,draw,fill=gray!8,minimum width=34mm,minimum height=8mm,align=center},
+    decision/.style={diamond,draw,fill=yellow!25,aspect=2.2,inner sep=1pt,align=center},
+    method/.style={rectangle,rounded corners=2pt,draw,fill=blue!10,minimum width=22mm,minimum height=9mm,align=center},
+    outp/.style={rectangle,rounded corners=2pt,draw,fill=green!12,minimum width=34mm,minimum height=8mm,align=center},
+    err/.style={rectangle,draw,fill=red!12,minimum width=24mm,minimum height=7mm,align=center},
+]
+\node[start] (inicio) {Inicio\\\texttt{appQGeoidCOL2023}};
+\node[io,below=6mm of inicio] (cargar) {Cargar\\\texttt{QGeoidCOL2023.TXT}};
+\node[proc,below=6mm of cargar] (validar) {\texttt{cargarYValidarMalla}\\numéricos, finitos, rango,\\duplicados, regularidad, faltantes};
+\node[decision,below=7mm of validar] (dec1) {¿Malla\\regular?};
+\node[err,right=14mm of dec1] (err1) {Error: malla\\no regular};
+\node[proc,below=7mm of dec1] (auto) {Autoverificación\\vs \texttt{interp2}, $\sum w=1$};
+\node[io,below=6mm of auto] (punto) {Punto(s) $(\varphi,\lambda,h)$};
+\node[decision,below=7mm of punto] (dec2) {¿Dentro de\\la malla?};
+\node[err,right=14mm of dec2] (err2) {Fuera de\\cobertura:\\sin valor};
+\node[decision,below=8mm of dec2] (met) {Método};
+
+\node[method,below=12mm of met,xshift=-62mm] (m1) {Vecino\\más cercano};
+\node[method,right=3mm of m1] (m2) {Lineal por\\triángulos};
+\node[method,right=3mm of m2] (m3) {Bilineal};
+\node[method,right=3mm of m3] (m4) {Bicúbica\\(Keys)};
+\node[method,right=3mm of m4] (m5) {IDW\\($p$, $k$)};
+\node[method,right=3mm of m5] (m6) {Kriging\\ordinario};
+\node[err,below=5mm of m4] (err3) {¿Soporte 4$\times$4?\\No: no aplicable};
+
+\node[proc,below=20mm of m3,xshift=12mm] (nucleo) {$\hat\zeta=\sum w_i\zeta_i$, verificación $\sum w_i=1$\\tabla de nodos, pesos y contribuciones};
+\node[proc,below=6mm of nucleo] (hn) {$H^N=h-\hat\zeta$ (si hay $h$)};
+\node[outp,below=6mm of hn] (out) {Vista general y local, tablas,\\comparación, validación, exportación};
+
+\draw[line] (inicio) -- (cargar);
+\draw[line] (cargar) -- (validar);
+\draw[line] (validar) -- (dec1);
+\draw[line] (dec1.east) -- node[above]{No} (err1.west);
+\draw[line] (dec1.south) -- node[left]{Sí} (auto.north);
+\draw[line] (auto) -- (punto);
+\draw[line] (punto) -- (dec2);
+\draw[line] (dec2.east) -- node[above]{No} (err2.west);
+\draw[line] (dec2.south) -- node[left]{Sí} (met.north);
+\coordinate (rep) at ($(met.south)+(0,-5mm)$);
+\draw (met.south) -- (rep);
+\foreach \m in {m1,m2,m3,m4,m5,m6} {\draw[line] (rep) -| (\m.north);}
+\draw[line,dashed] (m4.south) -- (err3.north);
+\coordinate (conv) at ($(nucleo.north)+(0,5mm)$);
+\foreach \m in {m1,m2,m3,m5,m6} {\draw (\m.south) |- (conv);}
+\draw (err3.south) |- (conv);
+\draw[line] (conv) -- (nucleo.north);
+\draw[line] (nucleo) -- (hn);
+\draw[line] (hn) -- (out);
+\end{tikzpicture}}
+\caption{Diagrama de flujo de \texttt{appQGeoidCOL2023}.}
+\label{fig:diagrama}
+\end{figure}
+
+% =====================================================================
+\section{Resultados}
+\label{sec:resultados}
+% =====================================================================
+
+\subsection{Anomalía de altura y altura normal en los puntos de control}
+La Tabla~\ref{tab:zeta} reúne $\hat\zeta$ por los seis métodos en los cinco puntos (los
+cinco están dentro de la cobertura y ninguno cae en una celda de borde, así que los seis
+métodos son aplicables en todos). La Tabla~\ref{tab:hn} presenta $h$, $\zeta$ y $H^N$
+para el método de referencia (bilineal).
+
+\begin{table}[H]
+\centering
+\caption{Anomalía de altura $\hat\zeta$ (m) por método. Calculada en doble precisión y
+presentada con cuatro decimales para hacer visibles las diferencias submilimétricas.}
+\label{tab:zeta}
+\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Punto & Vec. cercano & Triángulos & Bilineal & Bicúbica & IDW & Kriging \\
+\midrule
+P1 & \num{-13.4480} & \num{-13.2702} & \num{-13.2822} & \num{-13.2931} & \num{-13.3012} & \num{-13.2927} \\
+P2 & \num{2.3150} & \num{2.5327} & \num{2.5333} & \num{2.5237} & \num{2.5075} & \num{2.5234} \\
+P3 & \num{11.8490} & \num{11.7409} & \num{11.7637} & \num{11.8233} & \num{11.7469} & \num{11.7404} \\
+P4 & \num{23.3320} & \num{23.3668} & \num{23.3603} & \num{23.3722} & \num{23.3247} & \num{23.3564} \\
+P5 & \num{0.5750} & \num{0.8196} & \num{0.8260} & \num{0.8057} & \num{0.8076} & \num{0.8048} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Altura normal $H^N=h-\zeta$ con la interpolación bilineal (redondeo a \SI{1}{mm}).}
+\label{tab:hn}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Punto & $h$ (m) & $\zeta$ (m) & $H^N$ (m) \\
+\midrule
+P1 & \num{35.134} & \num{-13.282} & \num{48.416} \\
+P2 & \num{98.266} & \num{2.533} & \num{95.733} \\
+P3 & \num{3228.966} & \num{11.764} & \num{3217.202} \\
+P4 & \num{2725.381} & \num{23.360} & \num{2702.021} \\
+P5 & \num{185.792} & \num{0.826} & \num{184.966} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Nodos, pesos y contribuciones (P4)}
+Se detalla el punto P4 (Bogotá, $u=0{,}8455$, $v=0{,}7796$), que cae en una zona de
+gradiente fuerte de $\zeta$. Como $u\ge v$, el triángulo que lo contiene es SW--SE--NE.
+Las Tablas~\ref{tab:nodos_bil} y~\ref{tab:nodos_tri} muestran los nodos de la bilineal y
+de la lineal por triángulos, y la Figura~\ref{fig:locales} muestra la vista local de los
+seis métodos. Las tablas completas de IDW y kriging (16 nodos cada una) están en el
+Anexo~\ref{anx:tablas}.
+
+\begin{table}[H]
+\centering
+\caption{P4, bilineal: nodos, pesos y contribuciones. $\sum w_i=1{,}000000000000000$; $\hat\zeta=\SI{23.3603}{m}$.}
+\label{tab:nodos_bil}
+\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Nodo & $\varphi$ (grados) & $\lambda$ (grados) & $\zeta_i$ (m) & $w_i$ & $w_i\zeta_i$ (m) & $d$ (km) \\
+\midrule
+SW & \num{4.550000} & \num{-74.133333} & \num{23.388} & \num{0.034043} & \num{0.7962} & \num{10.612} \\
+SE & \num{4.550000} & \num{-74.050000} & \num{23.729} & \num{0.186318} & \num{4.4211} & \num{7.321} \\
+NE & \num{4.633333} & \num{-74.050000} & \num{23.332} & \num{0.659196} & \num{15.3804} & \num{2.481} \\
+NW & \num{4.633333} & \num{-74.133333} & \num{22.937} & \num{0.120443} & \num{2.7626} & \num{8.073} \\
+\midrule
+$\sum$ & & & & \num{1.000000} & \num{23.3603} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{P4, lineal por triángulos (SW--SE--NE): pesos $(1-u,\,u-v,\,v)$. $\hat\zeta=\SI{23.3668}{m}$.}
+\label{tab:nodos_tri}
+\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Nodo & $\varphi$ (grados) & $\lambda$ (grados) & $\zeta_i$ (m) & $w_i$ & $w_i\zeta_i$ (m) & $d$ (km) \\
+\midrule
+SW & \num{4.550000} & \num{-74.133333} & \num{23.388} & \num{0.154486} & \num{3.6131} & \num{10.612} \\
+SE & \num{4.550000} & \num{-74.050000} & \num{23.729} & \num{0.065875} & \num{1.5631} & \num{7.321} \\
+NE & \num{4.633333} & \num{-74.050000} & \num{23.332} & \num{0.779639} & \num{18.1905} & \num{2.481} \\
+\midrule
+$\sum$ & & & & \num{1.000000} & \num{23.3668} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+En P4, el vecino más cercano toma el nodo NE ($w=1$, a \SI{2.481}{km}). La bicúbica usa
+16 nodos, con el mayor peso en el nodo NE ($0{,}846$) y ocho pesos negativos en la corona
+exterior. El IDW concentra el 63\,\% del peso en el nodo más cercano, y el kriging lo
+reparte más ($0{,}248$ en el más cercano) y asigna pesos negativos a los seis nodos más
+lejanos. El variograma local que eligió el kriging en P4 fue gaussiano, con pepita de
+\SI{0.064}{m^2}, meseta parcial de \SI{4.15}{m^2}, rango de \SI{40.8}{km} y
+$\sigma_{KO}=\SI{0.283}{m}$.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/local_P4_vmc.png}\caption{Vecino más cercano}\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/local_P4_tri.png}\caption{Lineal por triángulos}\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/local_P4_bil.png}\caption{Bilineal}\end{subfigure}
+
+\vspace{0.3cm}
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/local_P4_bic.png}\caption{Bicúbica}\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/local_P4_idw.png}\caption{IDW ($p=2$, $k=16$)}\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/local_P4_ko.png}\caption{Kriging ordinario}\end{subfigure}
+\caption{Vista local en P4: campo interpolado con cada método ($\pm2{,}5$ nodos), nodos
+de la malla (puntos negros), nodos usados (tamaño proporcional a $|w_i|$; rojo $w_i>0$,
+azul $w_i<0$, etiqueta con el peso) y geometría de soporte (blanco: triángulo, celda,
+ventana $4\times4$ o líneas radiales; discontinua: celda que contiene al punto).}
+\label{fig:locales}
+\end{figure}
+
+\subsection{Diferencias entre métodos (m, cm, mm)}
+Se tomó la interpolación bilineal como referencia, por ser el método habitual de consulta
+de mallas geoidales, y no porque se considere un valor verdadero. La Tabla~\ref{tab:difmm}
+presenta $\hat\zeta_{\text{método}}-\hat\zeta_{\text{bilineal}}$ y la Tabla~\ref{tab:dispersion}
+resume la dispersión en las tres unidades.
+
+\begin{table}[H]
+\centering
+\caption{Diferencia respecto a la bilineal, $\hat\zeta_{\text{método}}-\hat\zeta_{\text{bilineal}}$, en mm.}
+\label{tab:difmm}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Punto & Vec. cercano & Triángulos & Bicúbica & IDW & Kriging \\
+\midrule
+P1 & \num{-165.8} & \num{12.0} & \num{-10.9} & \num{-19.0} & \num{-10.5} \\
+P2 & \num{-218.3} & \num{-0.6} & \num{-9.6} & \num{-25.8} & \num{-9.9} \\
+P3 & \num{85.3} & \num{-22.8} & \num{59.6} & \num{-16.8} & \num{-23.3} \\
+P4 & \num{-28.3} & \num{6.5} & \num{11.9} & \num{-35.6} & \num{-3.9} \\
+P5 & \num{-251.0} & \num{-6.3} & \num{-20.3} & \num{-18.3} & \num{-21.2} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figuras/1.png}
+\caption{Diferencia respecto a la interpolación bilineal en la anomalía de altura $\hat\zeta$ (mm) por método}
+\label{fig:app1}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Dispersión (máximo menos mínimo) de $\hat\zeta$ entre métodos en cada punto.}
+\label{tab:dispersion}
+\begin{tabular}{@{}lrrr@{\hspace{1.2cm}}rrr@{}}
+\toprule
+& \multicolumn{3}{c}{Seis métodos} & \multicolumn{3}{c}{Sin el vecino más cercano} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+Punto & m & cm & mm & m & cm & mm \\
+\midrule
+P1 & \num{0.178} & \num{17.8} & \num{177.8} & \num{0.031} & \num{3.1} & \num{31.0} \\
+P2 & \num{0.218} & \num{21.8} & \num{218.3} & \num{0.026} & \num{2.6} & \num{25.8} \\
+P3 & \num{0.109} & \num{10.9} & \num{108.6} & \num{0.083} & \num{8.3} & \num{82.9} \\
+P4 & \num{0.048} & \num{4.8} & \num{47.6} & \num{0.048} & \num{4.8} & \num{47.6} \\
+P5 & \num{0.251} & \num{25.1} & \num{251.0} & \num{0.021} & \num{2.1} & \num{21.2} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Validación cruzada}
+\begin{table}[H]
+\centering
+\caption{Validación cruzada por decimación (malla de prueba con paso de $10'$, 400 nodos
+de control, semilla 2023). Errores en mm.}
+\label{tab:cv}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Método & Evaluados & Sesgo & RMSE & MAE & P95 $|e|$ & Máx.\ $|e|$ \\
+\midrule
+Vecino más cercano & 400 & \num{88.5} & \num{480.7} & \num{326.3} & \num{997.0} & \num{2532.0} \\
+Lineal por triángulos & 400 & \num{-1.5} & \num{88.7} & \num{49.8} & \num{184.0} & \num{611.5} \\
+Bilineal & 400 & \num{-0.4} & \num{86.6} & \num{48.3} & \num{187.2} & \num{543.7} \\
+Bicúbica & 379$^{*}$ & \num{-0.9} & \num{58.0} & \num{29.5} & \num{141.4} & \num{313.2} \\
+IDW ($p=2$, $k=16$) & 400 & \num{6.6} & \num{212.3} & \num{133.4} & \num{449.3} & \num{959.4} \\
+Kriging ordinario & 400 & \num{-6.3} & \num{135.9} & \num{64.3} & \num{315.6} & \num{856.4} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.1cm}
+\footnotesize $^{*}$21 controles quedaron en celdas de borde de la malla decimada, donde la
+bicúbica no es aplicable (no se sustituyeron).
+\end{table}
+
+Para medir qué tan bien interpola cada método se tiene que el valor real se conoce,
+la diferencia es directamente el error. El \textbf{sesgo}
+es el error promedio con signo (cerca de cero = sin desviación sistemática); el
+\textbf{RMSE} es el error típico y penaliza las fallas grandes; el \textbf{MAE}
+es el error típico sin elevar al cuadrado; el \textbf{P95} es el valor que no
+supera el $95\%$ de los errores; y el \textbf{máximo} es el peor caso, de los 400 nodos de prueba, el método que falló por mayor diferencia fue vecino más cercano con $2532 mm$, o sea unos $2.5m$
+
+\vspace{0.4cm}
+El \textbf{diagrama de cajas} (izquierda) muestra cómo se reparten los $400$
+errores de cada método: la caja encierra la mitad central, la línea interna es
+el error típico y los puntos sueltos son casos atípicos. Las \textbf{barras}
+(derecha) comparan los cuatro indicadores por método en escala logarítmica,
+necesaria porque los errores van de decenas a miles de milímetros.
+
+\vspace{0.4cm}
+La interpolación por \textbf{vecino más cercano} presenta el peor (RMSE
+$\approx 481$~mm y sesgo notorio), mientras que la \textbf{bicúbica} es la que presenta mejor
+(RMSE $\approx 58$~mm), seguida de cerca por la \textbf{lineal por triángulos} y
+la \textbf{bilineal}; el \textbf{IDW} y el \textbf{kriging ordinario} quedan en
+un punto intermedio.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.44\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/cv_boxplot.png}\caption{Distribución de errores.}\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.44\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/cv_indicadores.png}\caption{Indicadores (escala logarítmica).}\end{subfigure}
+\caption{Validación cruzada por decimación.}
+\label{fig:cv}
+\end{figure}
+
+\subsection{Sensibilidad de parámetros}
+\label{sec:sensibilidad}
+Con los mismos 400 nodos de control se evaluaron combinaciones de los parámetros de IDW
+($p$, $k$) y de kriging ($n$, semiancho de la ventana) (Tabla~\ref{tab:sensibilidad}).
+
+\begin{table}[H]
+\centering
+\caption{Sensibilidad de parámetros: RMSE (mm) de la validación cruzada por decimación
+(mismos 400 controles). En negrita, la configuración por defecto de la herramienta.}
+\label{tab:sensibilidad}
+\begin{tabular}{@{}lrrrr@{\hspace{1.2cm}}lrrr@{}}
+\toprule
+\multicolumn{5}{c}{IDW} & \multicolumn{4}{c}{Kriging ordinario} \\
+\cmidrule(r){1-5}\cmidrule(l){6-9}
+$p$ \textbackslash{} $k$ & 4 & 8 & 16 & 32 & $n$ \textbackslash{} semiancho & 4 & 6 & 9 \\
+\midrule
+1 & \num{240.8} & \num{194.4} & \num{323.0} & \num{530.2} & 8  & \num{94.6} & \num{139.0} & \num{172.3} \\
+2 & \num{150.4} & \num{143.7} & \textbf{\num{212.3}} & \num{310.8} & 16 & \num{85.7} & \textbf{\num{135.9}} & \num{222.0} \\
+3 & \num{106.9} & \num{111.7} & \num{139.2} & \num{169.2} & 32 & \num{103.9} & \num{147.0} & \num{226.2} \\
+4 & \num{92.2} & \num{96.8} & \num{106.4} & \num{113.4} & & & & \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.1cm}
+\footnotesize Referencias en la misma prueba: bilineal \SI{86.6}{mm}; bicúbica \SI{58.0}{mm}.
+\end{table}
+
+% =====================================================================
+\section{Comparación con GeoCol2004 y EGM2008}
+\label{sec:modelos}
+% =====================================================================
+
+\subsection{Magnitud y referencias de cada modelo}
+Antes de restar valores de modelos distintos hay que verificar qué magnitud entrega
+cada uno y respecto a qué referencia (Tabla~\ref{tab:magnitudes}).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.0}
+\caption{Magnitud altimétrica, superficie, referencias, cobertura y resolución de cada modelo.}
+\label{tab:magnitudes}
+\begin{tabular}{@{}p{2.2cm}p{4.4cm}p{4.4cm}p{4.4cm}@{}}
+\toprule
+& QGeoidCOL2023 & GeoCol2004 & EGM2008 \\
+\midrule
+Magnitud & Anomalía de altura $\zeta$ & Ondulación geoidal $N$ & Ondulación geoidal $N$ (según la columna ``ONDU EGM08'' del archivo) \\
+Superficie & Cuasigeoide & Geoide (obtenido a partir de anomalías de altura con la segunda condensación de Helmert) & Geoide respecto al elipsoide WGS84 \\
+Altura asociada & Normal, $H^N=h-\zeta$ & Ortométrica, $H=h-N$ & Ortométrica, $H=h-N$ \\
+Elipsoide y sistema & GRS80; IHRS ($W_0=\SI{62636853.4}{m^2/s^2}$); marea cero \citep{liu2024} & GRS80 \citep{isg}; sistema de marea no especificado en la fuente consultada; MAGNA-SIRGAS & WGS84; sistema libre de marea (\emph{tide-free}) \citep{pavlis2012}, con término de grado cero \\
+Cobertura & $\ang{-4.78}$ a $\ang{12.80}$ N; $\ang{-79.30}$ a $\ang{-66.72}$ & Colombia & Global \\
+Resolución & $5'$ ($\approx\SI{9}{km}$) & $2'$ ($\approx\SI{3.7}{km}$) \citep{isg} & Modelo de grado 2159 \citep{pavlis2012} ($\approx\SI{9}{km}$) \\
+Desempeño declarado frente a GPS/nivelación & $\sigma=\SI{21.3}{cm}$ sin corrección; $\SI{15.8}{cm}$ con superficie de corrección de 7 parámetros (3025 puntos) \citep{liu2024} & Diferencia media de unos \SI{2}{m} con $\sigma\approx\SI{50}{cm}$ \citep{isg,sanchez2003} & $\sigma=\SI{28.1}{cm}$ con la misma corrección de 7 parámetros \citep{liu2024} \\
+Obtención en P1--P5 & Esta herramienta (bilineal); contraste con MAGNA 7.0 & MAGNA 7.0 (columna ``ONDU GEOCOL2004'' del archivo) & Calculadora de UNAVCO (columna ``ONDU EGM08'' del archivo) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{analisisBox}{Compatibilidad conceptual}
+\begin{itemize}
+    \item \textbf{QGeoidCOL2023 frente a GeoCol2004}: compatibilidad \emph{parcial}. La
+    diferencia $\zeta-N$ incluye la separación geoide--cuasigeoide
+    (ecuación~\eqref{eq:nzeta}), además de las diferencias propias de los modelos (datos de
+    gravedad, metodología, resolución y datum vertical). No debe interpretarse como ``error'' de
+    ninguno de los dos modelos sin antes descontar esa separación.
+    \item \textbf{QGeoidCOL2023 frente a EGM2008}: los valores del archivo son \emph{ondulaciones
+    geoidales} $N$ respecto a WGS84, de modo que la compatibilidad también es \emph{parcial}. EGM2008
+    permite calcular directamente la anomalía de altura (funcional \texttt{height\_anomaly} del
+    servicio ICGEM, \citealp{ince2019}; \citealp{barthelmes2013}), lo que daría una comparación de
+    magnitudes idénticas. Esa alternativa queda como mejora posible.
+    \item \textbf{Referencias.} QGeoidCOL2023 está en el sistema de marea cero y referido al IHRS;
+    las demás referencias no son necesariamente las mismas, y esa diferencia puede aportar una
+    componente sistemática (Sección~\ref{sec:analisis_modelos}).
+    \item Para efectos del ejercicio, QGeoidCOL2023 se adopta como referencia de
+    comparación, sin considerarlo un valor verdadero.
+\end{itemize}
+\end{analisisBox}
+
+\subsection{Procedimiento de obtención y verificación de los valores}
+\begin{itemize}
+    \item \textbf{QGeoidCOL2023.} Se interpoló $\zeta$ con la bilineal de la herramienta. El
+    archivo de puntos trae también $\zeta$ redondeado al milímetro, extraído de MAGNA 7.0, y coincide con
+    el valor de la herramienta a menos de \SI{0.4}{mm} (Tabla~\ref{tab:verif}).
+    \item \textbf{GeoCol2004.} Se tomó la ondulación $N$ de la columna ``ONDU GEOCOL2004'' del
+    archivo, extraída de MAGNA 7.0, sin recalcularla (el modelo no se incorporó a la herramienta). La altura de la columna
+    ``ALT GEOCOL2004'' coincide con $h-N$ en los cinco puntos.
+    \item \textbf{EGM2008.} Se tomó la ondulación $N$ de la columna ``ONDU EGM08'' del archivo, obtenida
+    de la calculadora de altura geoidal de UNAVCO/EarthScope \citep{unavco} y redondeada al centímetro.
+    Para verificarla de forma independiente se reprodujo esa calculadora, con el modelo \texttt{egm2008-5} (malla de $5'$ de
+    GeographicLib derivada de EGM2008, \citealp{karney}) e interpolación cúbica: se ejecutó el mismo
+    algoritmo (un port de \texttt{GeographicLib::Geoid}, \texttt{egm2008\_unavco.py}) y se validó contra
+    los valores de referencia de GeographicLib, calculados con el modelo completo: RMS de
+    \SI{4.3}{mm} en \num{20000} puntos globales y de \SI{11.3}{mm} en \num{3007} puntos en Colombia.
+    Los valores del archivo difieren de esta reproducción en menos de \SI{5}{mm}
+    (Tabla~\ref{tab:verif}), es decir, dentro del redondeo al centímetro, lo que confirma que la
+    calculadora usa la malla \texttt{egm2008-5} con interpolación cúbica. La altura elipsoidal no
+    interviene en $N$.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.9}
+\caption{Verificación de los valores del archivo de puntos: $\zeta$ de QGeoidCOL2023 frente a la
+interpolación bilineal de la herramienta, y $N$ de EGM2008 frente a la reproducción de la
+calculadora de UNAVCO (egm2008-5, cúbica). $\Delta$ = archivo $-$ cálculo.}
+\label{tab:verif}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+& \multicolumn{3}{c}{QGeoidCOL2023 $\zeta$ (m)} & \multicolumn{3}{c}{EGM2008 $N$ (m)} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+Punto & Archivo & Herramienta & $\Delta$ (mm) & Archivo & UNAVCO & $\Delta$ (mm) \\
+\midrule
+P1 & \num{-13.282} & \num{-13.2822} & \num{0.2} & \num{-13.25} & \num{-13.2547} & \num{4.7} \\
+P2 & \num{2.533} & \num{2.5333} & \num{-0.3} & \num{2.30} & \num{2.2999} & \num{0.1} \\
+P3 & \num{11.764} & \num{11.7637} & \num{0.3} & \num{11.97} & \num{11.9717} & \num{-1.7} \\
+P4 & \num{23.360} & \num{23.3603} & \num{-0.3} & \num{23.13} & \num{23.1263} & \num{3.7} \\
+P5 & \num{0.826} & \num{0.8260} & \num{0.0} & \num{0.13} & \num{0.1281} & \num{1.9} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tabla comparativa}
+\begin{table}[H]
+\centering
+\caption{Comparación entre modelos ($\zeta$ de QGeoidCOL2023 por interpolación bilineal;
+$N$ de GeoCol2004 y de EGM2008 tomados del archivo de puntos).}
+\label{tab:modelos}
+\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Punto & $\varphi$ & $\lambda$ & $h$ (m) & QGeoidCOL2023 & GeoCol2004 & EGM2008 \\
+& (grados) & (grados) & & $\zeta$ (m) & $N$ (m) & $N$ (m) \\
+\midrule
+P1 & \num{11.45196} & \num{-72.57443} & \num{35.134} & \num{-13.282} & \num{-12.549} & \num{-13.250} \\
+P2 & \num{8.43110} & \num{-75.55301} & \num{98.266} & \num{2.533} & \num{3.531} & \num{2.300} \\
+P3 & \num{7.31106} & \num{-72.87202} & \num{3228.966} & \num{11.764} & \num{15.836} & \num{11.970} \\
+P4 & \num{4.61497} & \num{-74.06287} & \num{2725.381} & \num{23.360} & \num{26.659} & \num{23.130} \\
+P5 & \num{6.27604} & \num{-71.65145} & \num{185.792} & \num{0.826} & \num{2.410} & \num{0.130} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3cm}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+& \multicolumn{3}{c}{QGeoid $-$ GeoCol2004} & \multicolumn{3}{c}{QGeoid $-$ EGM2008} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+Punto & m & cm & mm & m & cm & mm \\
+\midrule
+P1 & \num{-0.733} & \num{-73.3} & \num{-733.2} & \num{-0.032} & \num{-3.2} & \num{-32.2} \\
+P2 & \num{-0.998} & \num{-99.8} & \num{-997.7} & \num{0.233} & \num{23.3} & \num{233.3} \\
+P3 & \num{-4.072} & \num{-407.2} & \num{-4072.3} & \num{-0.206} & \num{-20.6} & \num{-206.3} \\
+P4 & \num{-3.299} & \num{-329.9} & \num{-3298.7} & \num{0.230} & \num{23.0} & \num{230.3} \\
+P5 & \num{-1.584} & \num{-158.4} & \num{-1584.0} & \num{0.696} & \num{69.6} & \num{696.0} \\
+\midrule
+Media & \num{-2.137} & \num{-213.7} & \num{-2137.2} & \num{0.184} & \num{18.4} & \num{184.2} \\
+RMS & \num{2.510} & \num{251.0} & \num{2510.3} & \num{0.357} & \num{35.7} & \num{356.5} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.95\linewidth, height=7.5cm,
+    ybar,
+    bar width=14pt,
+    xmin=0.4, xmax=5.6,
+    ymin=-500, ymax=100,
+    xtick={1,2,3,4,5},
+    xticklabels={P1,P2,P3,P4,P5},
+    ytick={-500,-400,-300,-200,-100,0,100},
+    ymajorgrids=true,
+    grid style={gray!25},
+    extra y ticks={0},
+    extra y tick labels={},
+    extra y tick style={grid=major, grid style={black!70, thin, solid}},
+    ylabel={Diferencia QGeoidCOL2023 $-$ modelo (cm)},
+    nodes near coords={\pgfmathprintnumber[fixed,precision=0]{\pgfplotspointmeta}},
+    nodes near coords style={font=\scriptsize},
+    legend style={at={(0.5,-0.12)}, anchor=north, legend columns=-1, draw=none, /tikz/column sep=8pt},
+    legend image code/.code={\draw[#1] (0cm,-0.1cm) rectangle (0.3cm,0.1cm);},
+    axis lines=left,
+]
+\addplot[fill=blue!60!black, draw=none] coordinates
+    {(1,-73.3) (2,-99.8) (3,-407.2) (4,-329.9) (5,-158.4)};
+\addplot[fill=orange, draw=none] coordinates
+    {(1,-3.2) (2,23.3) (3,-20.6) (4,23.0) (5,69.6)};
+\legend{QGeoid $-$ GeoCol2004, QGeoid $-$ EGM2008}
+\end{axis}
+\end{tikzpicture}
+\caption{Diferencia entre la anomalía de altura $\zeta$ de QGeoidCOL2023 (por
+interpolación bilineal) y la ondulación $N$ de GeoCol2004 y EGM2008 en los puntos
+P1--P5. Medias: GeoCol2004 $-213{,}7$~cm, EGM2008 $18{,}4$~cm. RMS: GeoCol2004
+$251{,}0$~cm, EGM2008 $35{,}7$~cm. Las barras más cortas indican mayor acuerdo
+con QGeoidCOL2023.}
+\label{fig:tabla17}
+\end{figure}
+
+
+\subsection{Efecto sobre la altura y control con la nivelación}
+\label{sec:control}
+Si en un punto se usa otro modelo en lugar de QGeoidCOL2023, la altura resultante cambia en
+$H_{\text{otro}}-H^N=(h-N_{\text{otro}})-(h-\zeta)=\zeta-N_{\text{otro}}$, es decir, en la misma
+magnitud de la diferencia entre modelos. Además, como el archivo trae la altura $H$ de la
+nivelación geométrica, la Tabla~\ref{tab:efecto_altura} compara la altura que resulta de cada
+modelo con ella. La diferencia $H^N-H=(h-\zeta)-H$ es la misma diferencia GPS/nivelación $(h-H)-\zeta$ con que
+\citet{liu2024} validan el modelo, y mezcla el error del modelo con los de la altura elipsoidal, los de la nivelación, el tipo de altura de la
+nivelación (nivelada y ajustada, ni ortométrica ni normal) y la inconsistencia de datum entre el IHRS y el datum
+vertical local.
+
+\begin{table}[H]
+\centering
+\caption{Altura nivelada $H$ y alturas obtenidas con cada modelo: $H^N=h-\zeta$ (QGeoidCOL2023),
+$H_{\text{GC}}=h-N_{\text{GeoCol2004}}$ y $H_{\text{EGM}}=h-N_{\text{EGM2008}}$; diferencias
+frente a la nivelada en cm.}
+\label{tab:efecto_altura}
+\small
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+& $H$ nivelada & $H^N$ & $H_{\text{GC}}$ & $H_{\text{EGM}}$ & $H^N-H$ & $H_{\text{GC}}-H$ & $H_{\text{EGM}}-H$ \\
+Punto & (m) & (m) & (m) & (m) & (cm) & (cm) & (cm) \\
+\midrule
+P1 & \num{48.434} & \num{48.416} & \num{47.683} & \num{48.384} & \num{-1.8} & \num{-75.1} & \num{-5.0} \\
+P2 & \num{95.573} & \num{95.733} & \num{94.735} & \num{95.966} & \num{15.9} & \num{-83.8} & \num{39.3} \\
+P3 & \num{3216.550} & \num{3217.202} & \num{3213.130} & \num{3216.996} & \num{65.2} & \num{-342.0} & \num{44.6} \\
+P4 & \num{2702.640} & \num{2702.021} & \num{2698.722} & \num{2702.251} & \num{-61.9} & \num{-391.8} & \num{-38.9} \\
+P5 & \num{184.956} & \num{184.966} & \num{183.382} & \num{185.662} & \num{1.0} & \num{-157.4} & \num{70.6} \\
+\midrule
+Media (cinco puntos) & & & & & \num{3.7} & \num{-210.0} & \num{22.1} \\
+RMS (cinco puntos) & & & & & \num{40.9} & \num{248.2} & \num{44.8} \\
+RMS (P1, P2, P5) & & & & & \num{9.3} & \num{111.7} & \num{46.7} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figuras/control_nivelacion.png}
+\caption{Altura de cada modelo menos la altura nivelada (cm). A la izquierda, los tres modelos;
+a la derecha, QGeoidCOL2023 y EGM2008 con una escala ampliada.}
+\label{fig:control}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/dif_QGeoid_GeoCol2004.png}
+\caption{QGeoid $-$ GeoCol2004 (cm).}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/dif_QGeoid_EGM2008.png}
+\caption{QGeoid $-$ EGM2008 (cm).}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}\centering
+\includegraphics[width=\linewidth]{figuras/dif_modelos_barras.png}
+\caption{Diferencias por punto (cm).}
+\end{subfigure}
+\caption{Comportamiento espacial de las diferencias entre modelos sobre las isolíneas de
+$\zeta$ (figuras exportadas desde la aplicación). Cada panel usa su propia escala de color.}
+\label{fig:modelos}
+\end{figure}
+
+% =====================================================================
+\section{Análisis}
+\label{sec:analisis}
+% =====================================================================
+
+\subsection{Diferencias entre métodos}
+\begin{itemize}
+    \item \textbf{El vecino más cercano no es aceptable para nivelación GNSS.} Se aparta de
+    la bilineal hasta \SI{25}{cm} (P5) y su RMSE en la validación cruzada es de
+    \SI{48}{cm}, con errores de hasta \SI{2.5}{m}. Su error depende de la distancia
+    al nodo y del gradiente local, no de la calidad del modelo.
+    \item \textbf{Bilineal y triángulos son prácticamente equivalentes} (RMSE de \SI{86.6}{mm}
+    y \SI{88.7}{mm}; diferencias de \SIrange{0.6}{23}{mm} en los puntos). Ambos son lineales
+    por tramos y difieren solo en cómo reparten el peso dentro de la celda.
+    \item \textbf{La bicúbica es la más exacta} (RMSE \SI{58}{mm}, un 33\,\% menos que la
+    bilineal), porque un polinomio cúbico local sigue la curvatura del campo, que en zonas
+    de montaña es importante. Su costo es que no aplica en la celda de borde y que usa pesos
+    negativos, que pueden producir sobreoscilaciones.
+    \item \textbf{IDW es el peor de los métodos continuos} (RMSE \SI{212}{mm}). Siempre
+    promedia: el valor queda dentro del rango de los nodos vecinos y el campo se ``aplana''
+    hacia la media local, lo que es un sesgo sistemático cuando $\zeta$ tiene gradiente. Sus
+    diferencias frente a la bilineal fueron negativas en los cinco puntos (de \SI{-16.8}{mm} a
+    \SI{-35.6}{mm}).
+    \item \textbf{El kriging, con la configuración por defecto, no supera a la bilineal}
+    (RMSE \SI{136}{mm}). Con una ventana más pequeña la iguala
+    (Sección~\ref{sec:sensibilidad}), pero a un costo de cómputo mucho mayor. El variograma local suele resultar gaussiano con pepita casi nula, un
+    modelo muy suave que con 16 vecinos produce pesos negativos y sistemas mal condicionados
+    (\texttt{rcond} de $10^{-10}$ a $10^{-9}$ en P1, P2 y P5). Además, su $\sigma_{KO}$ no está calibrada: en
+    P1, P2 y P5 da \SIrange{0.4}{0.7}{mm}, mientras que en P3 y P4 da unos \SI{0.28}{m}.
+    Ninguno de los dos valores es coherente con el RMSE observado, así que no debe tomarse
+    como la incertidumbre de $\zeta$.
+\end{itemize}
+
+\subsection{Comportamiento espacial y efecto de borde}
+Las diferencias entre métodos crecen con el gradiente y la curvatura locales de $\zeta$. Sin
+contar el vecino más cercano, la dispersión entre métodos es de \SIrange{21}{31}{mm} en P5 (Orinoquía),
+P2 (Córdoba) y P1 (Guajira) y mayor en la cordillera Oriental (P3, \SI{83}{mm}; P4, \SI{48}{mm}).
+Con un paso de $\approx\SI{9}{km}$, la malla no resuelve completamente las variaciones de
+$\zeta$ causadas por la topografía abrupta. En el borde de la malla, la bicúbica deja de
+ser aplicable, y el IDW y el kriging pasan a usar nodos de un solo lado, lo que aumenta
+sus errores. Ninguno de los cinco puntos de control está cerca del borde, por lo que este efecto no
+se observa en ellos, y la herramienta no extrapola en ningún caso. La
+muestra, además, no incluye el sur del país (Amazonía, Pacífico, Nariño): en esas zonas el
+comportamiento de los métodos y de los modelos podría ser distinto.
+
+\subsection{Sensibilidad de parámetros}
+La Tabla~\ref{tab:sensibilidad} muestra que IDW y kriging dependen mucho de sus
+parámetros, y que los valores por defecto ($p=2$, $k=16$; ventana de 6 nodos) no son los
+mejores para este campo:
+\begin{itemize}
+    \item En \textbf{IDW}, el error baja al aumentar $p$ y al reducir $k$ (de \SI{530}{mm}
+    con $p=1$ y $k=32$ a \SI{92}{mm} con $p=4$ y $k=4$). Ambos cambios hacen el método más
+    local: con $p$ alto y pocos nodos, el IDW se comporta casi como una interpolación entre
+    las esquinas de la celda. Ni siquiera la mejor configuración alcanza a la bilineal, por
+    el sesgo de promediado que tiene todo IDW.
+    \item En \textbf{kriging}, el factor dominante es el tamaño de la ventana del
+    variograma: con semiancho de 4 nodos ($\approx\pm\SI{37}{km}$) el RMSE baja a
+    \SI{85.7}{mm}, al nivel de la bilineal y con un MAE menor (\SI{38}{mm} frente a
+    \SI{48}{mm}). Con ventanas grandes, el variograma incorpora la tendencia regional de
+    $\zeta$ y deja de describir la variabilidad local. El número de vecinos tiene un efecto
+    menor, con un óptimo cerca de $n=16$.
+    \item Estos óptimos se obtuvieron con un paso de prueba de $10'$. Con el paso real de
+    $5'$ la escala relevante es la mitad, así que sirven como indicación de la tendencia y no
+    como valores definitivos. Por la misma razón, se mantuvieron los valores por defecto para
+    los resultados principales y la sensibilidad se reporta por separado.
+\end{itemize}
+
+\subsection{Diferencias entre QGeoidCOL2023 y GeoCol2004}
+\label{sec:analisis_modelos}
+La diferencia $\zeta-N$ (Tabla~\ref{tab:modelos}) es negativa en los cinco puntos y va de
+\SI{-0.73}{m} a \SI{-4.07}{m}, con media de \SI{-2.14}{m} y RMS de \SI{2.51}{m}: GeoCol2004 entrega
+ondulaciones mayores y, por tanto, alturas menores que QGeoidCOL2023 (Tabla~\ref{tab:efecto_altura}). Sus
+características son las siguientes:
+\begin{itemize}
+    \item \textbf{No se explica por la separación geoide--cuasigeoide.} En los puntos bajos (P1, P2 y
+    P5, con $H<\SI{200}{m}$) la ecuación~\eqref{eq:nzeta} da separaciones de pocos centímetros como
+    máximo (del orden de \SIrange{1}{2}{cm} por cada \SI{100}{mGal} de anomalía de Bouguer, y
+    se esperan anomalías menores de unos \SI{100}{mGal} en valor absoluto en esas zonas bajas),
+    mientras que las diferencias son de \SIrange{0.73}{1.58}{m}. En P3 y P4 ($H\approx\SI{3200}{m}$ y
+    $\SI{2700}{m}$), con una anomalía de Bouguer de $-\SI{150}{mGal}$, valor típico de la cordillera
+    Oriental que se supone aquí y no se calculó, la ecuación da $\zeta-N\approx\SI{+0.4}{m}$, de signo
+    contrario a las diferencias observadas (\SI{-4.07}{m} y \SI{-3.30}{m}).
+    \item \textbf{Es coherente con un sesgo propio de GeoCol2004.} Frente a la nivelación, GeoCol2004 queda entre
+    \SI{0.75}{m} y \SI{3.92}{m} por debajo, con una media de \SI{-2.10}{m}
+    (Tabla~\ref{tab:efecto_altura}), del orden de la diferencia media de unos \SI{2}{m} que se
+    documenta para ese modelo frente a puntos GPS/nivelación \citep{isg,sanchez2003}. En cambio, QGeoidCOL2023 coincide con la
+    nivelación a \SI{2}{cm} o menos en P1 y P5. Con solo cinco puntos esto es un indicio y no una
+    estimación del sesgo del modelo.
+    \item \textbf{GeoCol2004 también se aparta de EGM2008}, en el mismo sentido y por magnitudes
+    comparables: $N_{\text{GC}}-N_{\text{EGM}}$ es de \SI{+0.70}{m}, \SI{+1.23}{m}, \SI{+3.87}{m},
+    \SI{+3.53}{m} y \SI{+2.28}{m} en P1 a P5. Esas diferencias crecen con la altura elipsoidal en los
+    cinco puntos (de \SI{35}{m} a \SI{3229}{m}), lo que sugiere un error de GeoCol2004 que depende de la
+    topografía. Es una hipótesis, que habría que confirmar con más puntos; es coherente con que
+    GeoCol2004 se base en un modelo global de grado 200, un modelo digital de terreno de
+    $\approx\SI{1}{km}$ y una malla de $2'$ \citep{isg}.
+\end{itemize}
+\noindent\textbf{Efecto sobre la altura.} Como $H_{\text{GeoCol2004}}-H^N=\zeta-N$,
+cambiar de modelo altera la altura del punto en esa misma magnitud: de \SI{0.7}{m} en el Caribe a
+\SI{4}{m} en la cordillera Oriental. Una altura obtenida con GeoCol2004 y una obtenida con
+QGeoidCOL2023 no son intercambiables, y mezclarlas en un mismo proyecto introduce errores
+métricos.
+
+\subsection{Diferencias entre QGeoidCOL2023 y EGM2008}
+La diferencia $\zeta-N_{\text{EGM2008}}$ va de \SI{-20.6}{cm} a \SI{+69.6}{cm}, con media de
+\SI{+18.4}{cm}, desviación estándar de \SI{34.1}{cm} y RMS de \SI{35.7}{cm}
+(Tabla~\ref{tab:modelos}):
+\begin{itemize}
+    \item \textbf{P1 (Guajira): \SI{-3.2}{cm}.} A baja altitud y cerca del mar los dos modelos
+    coinciden a pocos centímetros.
+    \item \textbf{P3 y P4 (cordillera Oriental): \SI{-20.6}{cm} y \SI{+23.0}{cm}.} Tienen signos
+    opuestos y una magnitud cerca de un orden menor que las diferencias con GeoCol2004
+    (\SI{-4.07}{m} y \SI{-3.30}{m}). Para P4, la
+    separación geoide--cuasigeoide supuesta arriba ($\zeta-N\approx\SI{+0.4}{m}$) iría en el mismo
+    sentido, pero no para P3.
+    \item \textbf{P2 y P5 (\SI{+23.3}{cm} y \SI{+69.6}{cm}).} A baja altitud la separación
+    $N-\zeta$ es despreciable, así que estas diferencias son de modelo o de referencia. Frente a la
+    nivelación (Tabla~\ref{tab:efecto_altura}), en esos puntos la altura con QGeoidCOL2023 queda a
+    \SI{15.9}{cm} y \SI{1.0}{cm} y la de EGM2008 a \SI{39.3}{cm} y \SI{70.6}{cm}. Por tanto, estas diferencias
+    se deben sobre todo a EGM2008 en esos sitios, lo cual es coherente con la desviación estándar de
+    \SI{28.1}{cm} que \citet{liu2024} reportan para EGM2008 frente a \SI{15.8}{cm} para QGeoidCOL2023, con la
+    misma corrección y los mismos puntos GPS/nivelación.
+    \item \textbf{Referencias.} QGeoidCOL2023 está en el sistema de marea cero y referido al IHRS
+    ($W_0$ convencional), mientras que EGM2008 está en el sistema libre de marea y sus ondulaciones
+    respecto a WGS84 incluyen un término de grado cero de $\approx\SI{-41}{cm}$, según la documentación
+    del modelo. Estas diferencias de convención pueden aportar una componente sistemática, de centímetros
+    a decímetros, a las diferencias entre los dos modelos. En este trabajo no se cuantificó ni se corrigió, y
+    se declara como una limitación.
+\end{itemize}
+\noindent\textbf{Efecto sobre la altura.} Usar EGM2008 en lugar de QGeoidCOL2023 cambia la
+altura entre \SI{-21}{cm} y \SI{+70}{cm} (Tabla~\ref{tab:modelos}). El error de
+interpolación de la malla egm2008-5 (RMS de \SI{1.1}{cm} en Colombia) es despreciable frente
+a esas diferencias, que provienen de los modelos y no del cálculo.
+
+\subsection{Coherencia altimétrica con la nivelación}
+\label{sec:analisis_control}
+La Tabla~\ref{tab:efecto_altura} y la Figura~\ref{fig:control} confrontan las alturas de cada modelo con la de
+la nivelación geométrica:
+\begin{itemize}
+    \item \textbf{Puntos bajos (P1, P2 y P5; $H<\SI{200}{m}$).} Aquí, sea ortométrica o normal la altura de la nivelación (el archivo solo
+    indica que es nivelada y ajustada), la diferencia entre ambos tipos es de pocos centímetros, así que la
+    comparación es directa. QGeoidCOL2023 queda a
+    \SI{-1.8}{cm}, \SI{+15.9}{cm} y \SI{+1.0}{cm} (RMS de \SI{9.3}{cm}), EGM2008 a
+    \SI{-5.0}{cm}, \SI{+39.3}{cm} y \SI{+70.6}{cm} (\SI{46.7}{cm}) y GeoCol2004 a
+    \SI{-75.1}{cm}, \SI{-83.8}{cm} y \SI{-157.4}{cm} (\SI{111.7}{cm}).
+    \item \textbf{Puntos de montaña (P3 y P4).} Las diferencias de QGeoidCOL2023 son de \SI{+65.2}{cm} y
+    \SI{-61.9}{cm}, y las de EGM2008 de \SI{+44.6}{cm} y \SI{-38.9}{cm}: del mismo signo y de magnitud
+    parecida, lo que apunta a un componente común a ambos modelos de alta resolución, o a los datos de
+    esos puntos (nivelaciones de 2005 y 2001; alturas elipsoidales GNSS), más que a un defecto
+    específico de QGeoidCOL2023. Si la altura nivelada fuera ortométrica, la separación $H^N-H=N-\zeta$ (del orden de
+    $-\SI{0.4}{m}$ con la anomalía de Bouguer supuesta) podría explicar parte de P4 pero no de P3; como el
+    archivo no establece el tipo de altura, esa explicación no se usa aquí.
+    \item \textbf{Contexto.} En la validación de \citet{liu2024}, las diferencias entre
+    QGeoidCOL2023 y los 3025 puntos GPS/nivelación tienen media de \SI{+19.2}{cm}, desviación estándar de
+    \SI{21.3}{cm} y un rango de \SI{-46.1}{cm} a \SI{+87.7}{cm} antes de la corrección. Las diferencias de los cinco
+    puntos (de \SI{-61.9}{cm} a \SI{+65.2}{cm}, media de \SI{+3.7}{cm}) son del mismo orden, salvo P4, que
+    queda \SI{16}{cm} por debajo del mínimo reportado. Con cinco puntos no es posible estimar la exactitud
+    del modelo, y no se sabe si estos puntos forman parte del conjunto de validación de ese trabajo, por lo que
+    no se consideran independientes.
+\end{itemize}
+\noindent Estos resultados no establecen la superioridad absoluta de ningún modelo: con cinco puntos, la
+nivelación y el GNSS tienen sus propios errores, y el datum vertical local no coincide con el IHRS. Sí
+muestran que, en este conjunto, QGeoidCOL2023 reproduce la nivelación mejor que EGM2008 y mucho mejor
+que GeoCol2004, y que la elección del modelo cambia la altura entre decímetros y metros, mientras
+que la del método de interpolación la cambia como máximo unos \SI{8}{cm} (sin el vecino más cercano).
+
+% =====================================================================
+\section{Conclusiones}
+% =====================================================================
+\begin{itemize}
+    \item La malla QGeoidCOL2023 se validó con controles explícitos y documentados: es una
+    malla completa, rectangular y regular de $212\times152$ nodos con paso de $5'$, sin
+    datos inválidos, duplicados ni faltantes.
+    \item Los seis métodos se implementaron con un núcleo común ($\hat\zeta=\sum w_i\zeta_i$)
+    que expone nodos, pesos y contribuciones y verifica $\sum w_i=1$ en cada cálculo. Las
+    implementaciones bilineal, bicúbica y de vecino más cercano coinciden con \texttt{interp2}
+    a nivel de $10^{-14}$\,m. Ningún método extrapola, y la bicúbica declara su falta de
+    soporte en el borde en lugar de sustituirse.
+    \item En los puntos de control, la elección del método cambia $\zeta$ (y por tanto
+    $H^N$) entre \SI{21}{mm} y \SI{83}{mm} entre los métodos continuos, y hasta \SI{25}{cm} con
+    el vecino más cercano. Las diferencias son mayores donde el campo tiene más gradiente
+    y curvatura.
+    \item La validación cruzada por decimación ordena los métodos así: bicúbica, bilineal
+    $\approx$ triángulos, kriging, IDW y vecino más cercano. La bilineal sigue siendo una
+    elección razonable por su simplicidad y trazabilidad, y la bicúbica es preferible donde
+    tiene soporte.
+    \item La diferencia $\zeta-N$ entre QGeoidCOL2023 y GeoCol2004 es negativa en los cinco puntos
+    (de \SI{-0.7}{m} a \SI{-4.1}{m}, media de \SI{-2.1}{m}). Esa diferencia no se explica por la separación geoide--cuasigeoide sino por el
+    sesgo de GeoCol2004, que frente a la nivelación es del orden de lo documentado para ese modelo (unos
+    \SI{2}{m}). La diferencia frente a la nivelación de QGeoidCOL2023 es de \SI{2}{cm} o menos en P1 y P5.
+    \item Frente a EGM2008 las diferencias son de \SI{-21}{cm} a \SI{+70}{cm} (RMS de \SI{36}{cm}). En los
+    puntos bajos donde EGM2008 se aparta más (P2 y P5) la altura con QGeoidCOL2023 es la que más se acerca a
+    la nivelación, de modo que la diferencia se atribuye principalmente a EGM2008, con la reserva de las
+    posibles diferencias de referencia (sistema de marea y término de grado cero), que no se cuantificaron.
+    \item En los dos puntos de montaña, QGeoidCOL2023 y EGM2008 difieren de la nivelación en decímetros y
+    con el mismo signo. Esto indica un componente común a ambos modelos o a los datos de esos puntos, y no
+    permite concluir sobre la exactitud de QGeoidCOL2023 en zonas montañosas.
+    \item La elección del modelo influye sobre la altura mucho más (decímetros a metros) que la del
+    método de interpolación (centímetros). En consecuencia, $N$ y $\zeta$ (y $H$ y $H^N$) no son
+    intercambiables.
+    \item Limitaciones: cinco puntos (todos al norte de \ang{4.6} N, sin puntos en la Amazonía, el Pacífico ni el
+    sur) no bastan para estimar la exactitud de los modelos; los valores de GeoCol2004 y EGM2008 provienen del
+    archivo de puntos (MAGNA 7.0 y la calculadora de UNAVCO; EGM2008 se verificó de forma independiente); y las
+    alturas niveladas (ajustadas, de tipo no especificado) no se reducen a un mismo datum vertical con el IHRS.
+\end{itemize}
+
+% =====================================================================
+\begin{thebibliography}{9}
+% =====================================================================
+\bibitem[Olarte(2025)]{olarte2025}
+Olarte Ramírez, H. (2025). \textit{Estimación de un modelo micro-cuasigeoidal mediante el
+modelamiento del campo de gravedad local para la incorporación de la primera estación de
+Colombia en el IHRF}. Trabajo de grado para optar al título de Ingeniero Catastral y Geodesta.
+Director: C.~E. Melo Martínez, Ph.D. Facultad de Ingeniería, Ingeniería Catastral y Geodesia,
+Universidad Distrital Francisco José de Caldas, Bogotá, Colombia.
+
+\bibitem[Barthelmes(2013)]{barthelmes2013}
+Barthelmes, F. (2013). \textit{Definition of functionals of the geopotential and their
+calculation from spherical harmonic models}. Scientific Technical Report STR09/02
+(revisado 2013). GFZ German Research Centre for Geosciences, Potsdam.
+\url{https://doi.org/10.2312/GFZ.b103-0902-26}
+
+\bibitem[Cressie(1993)]{cressie1993}
+Cressie, N. (1993). \textit{Statistics for Spatial Data} (ed.\ revisada). John Wiley \& Sons.
+
+\bibitem[Hofmann-Wellenhof y Moritz(2006)]{hofmannmoritz2006}
+Hofmann-Wellenhof, B., Moritz, H. (2006). \textit{Physical Geodesy} (2.ª ed.). Springer.
+
+\bibitem[Ince et~al.(2019)]{ince2019}
+Ince, E.S., Barthelmes, F., Reißland, S., Elger, K., Förste, C., Flechtner, F., Schuh, H.
+(2019). ICGEM -- 15 years of successful collection and distribution of global gravitational
+models, associated services, and future plans. \textit{Earth System Science Data}, 11,
+647--674. \url{https://doi.org/10.5194/essd-11-647-2019}
+
+\bibitem[Keys(1981)]{keys1981}
+Keys, R. (1981). Cubic convolution interpolation for digital image processing.
+\textit{IEEE Transactions on Acoustics, Speech, and Signal Processing}, 29(6), 1153--1160.
+
+\bibitem[Pavlis et~al.(2012)]{pavlis2012}
+Pavlis, N.K., Holmes, S.A., Kenyon, S.C., Factor, J.K. (2012). The development and
+evaluation of the Earth Gravitational Model 2008 (EGM2008). \textit{Journal of Geophysical
+Research}, 117, B04406. \url{https://doi.org/10.1029/2011JB008916}
+
+\bibitem[Shepard(1968)]{shepard1968}
+Shepard, D. (1968). A two-dimensional interpolation function for irregularly-spaced
+data. \textit{Proceedings of the 1968 ACM National Conference}, 517--524.
+
+\bibitem[Snyder(1987)]{snyder1987}
+Snyder, J.P. (1987). \textit{Map Projections -- A Working Manual}. USGS Professional
+Paper 1395.
+
+\bibitem[Torge y Müller(2012)]{torgemuller2012}
+Torge, W., Müller, J. (2012). \textit{Geodesy} (4.ª ed.). De Gruyter.
+
+\bibitem[Karney(s.f.)]{karney}
+Karney, C.F.F. (s.f.). \textit{GeographicLib: Geoid height}. Documentación de la clase
+\texttt{GeographicLib::Geoid} y de las mallas \texttt{egm2008-5}.
+\url{https://geographiclib.sourceforge.io/html/geoid.html}
+
+\bibitem[UNAVCO/EarthScope(s.f.)]{unavco}
+UNAVCO/EarthScope Consortium (s.f.). \textit{Geoid Height Calculator}.
+\url{https://www.unavco.org/software/geodetic-utilities/geoid-height-calculator/geoid-height-calculator.html}
+Consultado el 6 de octubre de 2026.
+
+\bibitem[IGAC(2026)]{igacnoticia}
+Instituto Geográfico Agustín Codazzi (2026). \textit{Después de 20 años, Colombia cuenta con un
+nuevo modelo oficial de referencia de alturas: QGeoidCOL2023}. Noticia institucional.
+\url{https://www.igac.gov.co/noticias/despues-de-20-anos-colombia-cuenta-con-un-nuevo-modelo-oficial-de-referencia-de-alturas-qgeoidcol2023}
+Consultado el 9 de octubre de 2026.
+
+\bibitem[ISG(s.f.)]{isg}
+International Service for the Geoid (s.f.). \textit{Fichas de los modelos GEOCOL2004 y QgeoidCOL2023}.
+Politecnico di Milano. \url{https://isgeoid.polimi.it/Geoid/America/Colombia/colombia04_g.html} y
+\url{https://isgeoid.polimi.it/Geoid/America/Colombia/colombia23_g.html}
+Consultado el 9 de octubre de 2026.
+
+\bibitem[Liu et~al.(2024)]{liu2024}
+Liu, Q., Schmidt, M., Sánchez, L., Moisés, L., Cortez, D. (2024). Modelado regional del campo de
+gravedad de alta resolución en regiones con desafíos de datos para la realización de sistemas de
+alturas basados en geopotencial (documento técnico de QGeoidCOL2023, traducción al español publicada
+por el IGAC). \textit{Earth, Planets and Space}, 76, 35.
+\url{https://doi.org/10.1186/s40623-024-01981-1}
+
+\bibitem[Sánchez(2003)]{sanchez2003}
+Sánchez, L. (2003). \textit{Determinación de la superficie vertical de referencia para Colombia}.
+Tesis doctoral, Technische Universität Dresden (citada en la ficha de GEOCOL2004 de ISG).
+
+\end{thebibliography}
+
+% =====================================================================
+\appendix
+\section{Tablas de nodos de IDW y kriging en P4}
+\label{anx:tablas}
+% =====================================================================
+
+\begin{table}[H]
+\centering
+\caption{P4: nodos y pesos de IDW ($p=2$, $k=16$; $\hat\zeta=\SI{23.3247}{m}$) y de kriging
+ordinario ($n=16$; $\hat\zeta=\SI{23.3564}{m}$). Mismos 16 nodos, ordenados por distancia.}
+\label{tab:nodos_idw_ko}
+\small
+\begin{tabular}{@{}rrrrrrrr@{}}
+\toprule
+& & & & \multicolumn{2}{c}{IDW} & \multicolumn{2}{c}{Kriging} \\
+\cmidrule(lr){5-6}\cmidrule(l){7-8}
+\# & $\varphi$ & $\lambda$ & $\zeta_i$ (m) & $w_i$ & $w_i\zeta_i$ & $\lambda_i$ & $\lambda_i\zeta_i$ \\
+\midrule
+1 & \num{4.633333} & \num{-74.050000} & \num{23.332} & \num{0.630354} & \num{14.7074} & \num{0.248233} & \num{5.7918} \\
+2 & \num{4.550000} & \num{-74.050000} & \num{23.729} & \num{0.072414} & \num{1.7183} & \num{0.210289} & \num{4.9899} \\
+3 & \num{4.633333} & \num{-74.133333} & \num{22.937} & \num{0.059550} & \num{1.3659} & \num{0.201376} & \num{4.6190} \\
+4 & \num{4.550000} & \num{-74.133333} & \num{23.388} & \num{0.034461} & \num{0.8060} & \num{0.153020} & \num{3.5788} \\
+5 & \num{4.633333} & \num{-73.966667} & \num{23.572} & \num{0.032907} & \num{0.7757} & \num{0.145262} & \num{3.4241} \\
+6 & \num{4.716667} & \num{-74.050000} & \num{22.958} & \num{0.030236} & \num{0.6942} & \num{0.086738} & \num{1.9913} \\
+7 & \num{4.550000} & \num{-73.966667} & \num{23.635} & \num{0.023466} & \num{0.5546} & \num{0.116801} & \num{2.7606} \\
+8 & \num{4.716667} & \num{-74.133333} & \num{22.630} & \num{0.020713} & \num{0.4687} & \num{0.062797} & \num{1.4211} \\
+9 & \num{4.716667} & \num{-73.966667} & \num{23.305} & \num{0.016162} & \num{0.3767} & \num{-0.009123} & \num{-0.2126} \\
+10 & \num{4.466667} & \num{-74.050000} & \num{23.900} & \num{0.014339} & \num{0.3427} & \num{0.013617} & \num{0.3255} \\
+11 & \num{4.633333} & \num{-74.216667} & \num{22.602} & \num{0.013156} & \num{0.2973} & \num{0.025824} & \num{0.5837} \\
+12 & \num{4.466667} & \num{-74.133333} & \num{23.962} & \num{0.011771} & \num{0.2821} & \num{-0.040964} & \num{-0.9816} \\
+13 & \num{4.550000} & \num{-74.216667} & \num{23.012} & \num{0.011332} & \num{0.2608} & \num{-0.031283} & \num{-0.7199} \\
+14 & \num{4.466667} & \num{-73.966667} & \num{23.514} & \num{0.010147} & \num{0.2386} & \num{-0.057210} & \num{-1.3452} \\
+15 & \num{4.633333} & \num{-73.883333} & \num{23.531} & \num{0.009690} & \num{0.2280} & \num{-0.058619} & \num{-1.3794} \\
+16 & \num{4.716667} & \num{-74.216667} & \num{22.330} & \num{0.009303} & \num{0.2077} & \num{-0.066757} & \num{-1.4907} \\
+\midrule
+$\sum$ & & & & \num{1.000000} & \num{23.3247} & \num{1.000000} & \num{23.3564} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================================
+\section{Organización del código fuente}
+\label{anx:codigo}
+% =====================================================================
+El código completo se entrega como archivos independientes (Anexo~\ref{anx:archivos}) y no se transcribe
+en este documento. La aplicación (\texttt{appQGeoidCOL2023.m}) es un archivo único con las funciones
+siguientes:
+\begin{itemize}
+    \item \textbf{Interfaz y modos de uso:} \texttt{appQGeoidCOL2023} (interfaz gráfica),
+    \texttt{appQGeoidCOL2023('lote')} (validación, seis métodos, comparación de métodos y de modelos y validación cruzada)
+    y \texttt{appQGeoidCOL2023('sensibilidad')} (análisis de sensibilidad de parámetros).
+    \item \textbf{Lectura y validación:} \texttt{cargarYValidarMalla}, \texttt{autoverificarImplementacion}.
+    \item \textbf{Interpolación:} \texttt{interpolarPunto} (núcleo común) y \texttt{pesosVecinoMasCercano},
+    \texttt{pesosTriangulos}, \texttt{pesosBilineal}, \texttt{pesosBicubica}, \texttt{pesosIDW}, \texttt{pesosKriging}.
+    \item \textbf{Evaluación:} \texttt{compararMetodos}, \texttt{validacionDecimacion}, \texttt{compararModelos}.
+    \item \textbf{Gráficos:} \texttt{graficarMallaGeneral}, \texttt{graficarVistaLocal},
+    \texttt{graficarComparacionMetodos}, \texttt{graficarValidacionCruzada}, \texttt{graficarDiferenciasModelos}.
+\end{itemize}
+Los fragmentos esenciales (núcleo común y pesos de la lineal por triángulos) se muestran en la
+Sección~\ref{sec:procedimiento}.
+
+
+% =====================================================================
+\section{Archivos de la entrega}
+\label{anx:archivos}
+% =====================================================================
+\begin{table}[H]
+\centering
+\caption{Archivos que acompañan al informe.}
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{5.6cm}p{9.8cm}@{}}
+\toprule
+Archivo & Contenido \\
+\midrule
+\texttt{appQGeoidCOL2023.m} & Aplicación (interfaz, modo por lotes y de sensibilidad). \\
+\texttt{QGeoidCOL2023.txt} & Malla oficial de $\zeta$ (entrada). \\
+\texttt{valores\_control\_P1\_P5.csv} & Puntos, alturas niveladas y valores de GeoCol2004, EGM2008 y QGeoidCOL2023 tomados de \texttt{5 PUNTOS CALCULADOS COLOMBIA.xlsx}. \\
+\texttt{generarResultadosInforme.m} & Reproduce las figuras (\texttt{informe/figuras}) y los datos (\texttt{informe/datos}). \\
+\texttt{egm2008\_unavco.py} & Reproducción de la calculadora de UNAVCO (egm2008-5); requiere \texttt{egm2008-5.pgm} y \texttt{GeoidHeights.dat} de GeographicLib. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

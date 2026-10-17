@@ -113,7 +113,7 @@
 Se desarrolló en MATLAB una herramienta con interfaz gráfica
 (\texttt{appQGeoidCOL2023.m}) que lee y valida la malla oficial \textbf{QGeoidCOL2023},
 interpola la anomalía de altura $\zeta$ en cualquier punto dentro de su cobertura y
-calcula la altura normal $H^N=h-\zeta$. La malla (\num{32224} nodos, $212\times152$, paso
+calcula la altura normal $H^N=h-\zeta$. La malla (32\,224 nodos, $212\times152$, paso
 de $5'$, $\approx\SI{9.2}{km}$) superó todos los controles de calidad: datos numéricos y
 finitos, sin duplicados ni nodos faltantes, rectangular y regular con desviaciones del
 paso del orden de $10^{-14}$ grados. Se implementaron y compararon \textbf{seis métodos}:
@@ -126,16 +126,32 @@ elipsoidal, altura nivelada y valores de GeoCol2004 y EGM2008 (archivo de puntos
 los métodos (excepto el vecino más cercano) difieren entre sí entre \SI{21}{mm} y \SI{83}{mm}; el vecino más
 cercano se aparta hasta \SI{25}{cm}. Una validación cruzada por decimación de la malla ubica a la
 bicúbica como el método de menor error (RMSE de \SI{58}{mm} con paso de prueba de $10'$),
-seguida de la bilineal y la lineal por triángulos (\SI{87}{mm} y \SI{89}{mm}). La diferencia
-QGeoidCOL2023 $-$ GeoCol2004 ($\zeta-N$) es negativa en los cinco puntos, de \SI{-0.73}{m} a
-\SI{-4.07}{m} (media \SI{-2.14}{m}), y no se explica por la separación geoide--cuasigeoide sino por
-el sesgo de GeoCol2004, cuya diferencia media con la nivelación en estos puntos (\SI{-2.1}{m}) es del
-orden de la documentada para ese modelo. Frente a EGM2008 (ondulación geoidal), la diferencia va de
-\SI{-21}{cm} a \SI{+70}{cm} (RMS de \SI{36}{cm}). Como control altimétrico, en los tres puntos
-bajos (P1, P2 y P5) la altura normal calculada con QGeoidCOL2023 difiere de la altura nivelada en
-\SI{-1.8}{cm}, \SI{+15.9}{cm} y \SI{+1.0}{cm} (RMS de \SI{9}{cm}), frente a \SI{47}{cm} con EGM2008 y
-\SI{112}{cm} con GeoCol2004. En los dos puntos de montaña (P3 y P4) las diferencias con la
-nivelación son de \SI{+65}{cm} y \SI{-62}{cm}, de magnitud similar a las de EGM2008.
+seguida de la bilineal y la lineal por triángulos (\SI{87}{mm} y \SI{89}{mm}).
+
+Como complemento, se desarrolló en Python (\texttt{parametrico1.py} y \texttt{parametrico2.py},
+solo con la biblioteca estándar) una herramienta que aplica el planteamiento de
+\citet{guimaraes2025} a 4272 puntos de la Red Nacional de Nivelación. Lleva las alturas y las
+mallas al sistema de mareas \emph{zero tide} (alturas elipsoidales en \emph{tide free}, niveladas en
+\emph{mean tide} y EGM2008 en \emph{tide free}), aparta 62 puntos con errores evidentes,
+interpola el geoide con los mismos seis métodos y ajusta a la discrepancia $l=h-H-N$ un modelo de
+desplazamiento e inclinación. Con los dos criterios, independientes entre sí, la bicúbica resulta el
+mejor método, y con QGeoidCOL2023 el orden de los seis métodos coincide con el de la validación
+cruzada. El desplazamiento del datum de Buenaventura es de \SI{1.07}{m} respecto a EGM2008, del
+orden del valor de \SI{0.99}{m} publicado para Colombia, y de solo \SI{0.18}{m} respecto a
+QGeoidCOL2023, con una dispersión remanente de \SI{0.23}{m} frente a \SI{0.33}{m} de EGM2008.
+Entre métodos, ese desplazamiento varía como máximo \SI{1.4}{cm}.
+
+En los cinco puntos de control, la diferencia QGeoidCOL2023 $-$ GeoCol2004 ($\zeta-N$) es negativa,
+de \SI{-0.73}{m} a \SI{-4.07}{m} (media \SI{-2.14}{m}). No se explica por la separación
+geoide--cuasigeoide sino por el sesgo de GeoCol2004, cuya diferencia media con la nivelación en
+estos puntos (\SI{-2.1}{m}) es del orden de la documentada para ese modelo. Frente a EGM2008
+(ondulación geoidal), la diferencia va de \SI{-21}{cm} a \SI{+70}{cm} (RMS de \SI{36}{cm}). Como
+control altimétrico, en los tres puntos bajos (P1, P2 y P5) la altura normal calculada con
+QGeoidCOL2023 difiere de la altura nivelada en \SI{-1.8}{cm}, \SI{+15.9}{cm} y \SI{+1.0}{cm}
+(RMS de \SI{9}{cm}), frente a \SI{47}{cm} con EGM2008 y \SI{112}{cm} con GeoCol2004. En los dos
+puntos de montaña (P3 y P4) las diferencias con la nivelación son de \SI{+65}{cm} y \SI{-62}{cm},
+de magnitud similar a las de EGM2008. En las dos herramientas, la elección del modelo de geoide
+influye en la altura mucho más que la del método de interpolación.
 \end{abstract}
 
 \tableofcontents
@@ -1755,6 +1771,7 @@ QGeoidCOL2023 no son intercambiables, y mezclarlas en un mismo proyecto introduc
 métricos.
 
 \subsection{Diferencias entre QGeoidCOL2023 y EGM2008}
+
 La diferencia $\zeta-N_{\text{EGM2008}}$ va de \SI{-20.6}{cm} a \SI{+69.6}{cm}, con media de
 \SI{+18.4}{cm}, desviación estándar de \SI{34.1}{cm} y RMS de \SI{35.7}{cm}
 (Tabla~\ref{tab:modelos}):
@@ -1773,12 +1790,18 @@ La diferencia $\zeta-N_{\text{EGM2008}}$ va de \SI{-20.6}{cm} a \SI{+69.6}{cm}, 
     se deben sobre todo a EGM2008 en esos sitios, lo cual es coherente con la desviación estándar de
     \SI{28.1}{cm} que \citet{liu2024} reportan para EGM2008 frente a \SI{15.8}{cm} para QGeoidCOL2023, con la
     misma corrección y los mismos puntos GPS/nivelación.
+    
     \item \textbf{Referencias.} QGeoidCOL2023 está en el sistema de marea cero y referido al IHRS
     ($W_0$ convencional), mientras que EGM2008 está en el sistema libre de marea y sus ondulaciones
     respecto a WGS84 incluyen un término de grado cero de $\approx\SI{-41}{cm}$, según la documentación
     del modelo. Estas diferencias de convención pueden aportar una componente sistemática, de centímetros
-    a decímetros, a las diferencias entre los dos modelos. En este trabajo no se cuantificó ni se corrigió, y
-    se declara como una limitación.
+    a decímetros, a las diferencias entre los dos modelos. En la comparación de los cinco puntos de
+    control no se cuantificaron ni se corrigieron, y se declaran como una limitación. En el análisis de
+    la Red Nacional de Nivelación (Sección~\ref{sec:parametrico}), en cambio, el sistema de mareas sí se
+    homogeneizó: EGM2008 se pasó de \emph{tide free} a \emph{zero tide}, lo que eleva $N$ entre
+    \SI{2.6}{cm} y \SI{3.0}{cm} en el área de los puntos. Esa corrección es pequeña frente a las diferencias
+    entre modelos de esta sección, de modo que no cambia sus conclusiones.
+    
 \end{itemize}
 \noindent\textbf{Efecto sobre la altura.} Usar EGM2008 en lugar de QGeoidCOL2023 cambia la
 altura entre \SI{-21}{cm} y \SI{+70}{cm} (Tabla~\ref{tab:modelos}). El error de
@@ -1796,13 +1819,19 @@ la nivelación geométrica:
     \SI{-1.8}{cm}, \SI{+15.9}{cm} y \SI{+1.0}{cm} (RMS de \SI{9.3}{cm}), EGM2008 a
     \SI{-5.0}{cm}, \SI{+39.3}{cm} y \SI{+70.6}{cm} (\SI{46.7}{cm}) y GeoCol2004 a
     \SI{-75.1}{cm}, \SI{-83.8}{cm} y \SI{-157.4}{cm} (\SI{111.7}{cm}).
+    
     \item \textbf{Puntos de montaña (P3 y P4).} Las diferencias de QGeoidCOL2023 son de \SI{+65.2}{cm} y
     \SI{-61.9}{cm}, y las de EGM2008 de \SI{+44.6}{cm} y \SI{-38.9}{cm}: del mismo signo y de magnitud
     parecida, lo que apunta a un componente común a ambos modelos de alta resolución, o a los datos de
     esos puntos (nivelaciones de 2005 y 2001; alturas elipsoidales GNSS), más que a un defecto
     específico de QGeoidCOL2023. Si la altura nivelada fuera ortométrica, la separación $H^N-H=N-\zeta$ (del orden de
-    $-\SI{0.4}{m}$ con la anomalía de Bouguer supuesta) podría explicar parte de P4 pero no de P3; como el
-    archivo no establece el tipo de altura, esa explicación no se usa aquí.
+    $-\SI{0.4}{m}$ con la anomalía de Bouguer supuesta) podría explicar parte de P4 pero no de P3. El
+    archivo de los cinco puntos no establece el tipo de altura, por lo que esa explicación no se usa aquí.
+    Para la Red Nacional de Nivelación, en cambio, \citet{guimaraes2025} indican que Colombia usa alturas
+    normal-ortométricas, y así se tratan en la Sección~\ref{sec:parametrico}. Las dos afirmaciones no se
+    contradicen: corresponden a archivos distintos, y solo en el segundo el tipo de altura está documentado.
+
+    
     \item \textbf{Contexto.} En la validación de \citet{liu2024}, las diferencias entre
     QGeoidCOL2023 y los 3025 puntos GPS/nivelación tienen media de \SI{+19.2}{cm}, desviación estándar de
     \SI{21.3}{cm} y un rango de \SI{-46.1}{cm} a \SI{+87.7}{cm} antes de la corrección. Las diferencias de los cinco
@@ -1818,44 +1847,75 @@ que GeoCol2004, y que la elección del modelo cambia la altura entre decímetros
 que la del método de interpolación la cambia como máximo unos \SI{8}{cm} (sin el vecino más cercano).
 
 % =====================================================================
-\section{Conclusiones}
+\section{Conclusiones}%LE QUITO LO DE ITEMPORQ DEBE SER UN TEXTO EN PROSA NO CON VIÑETAS
 % =====================================================================
-\begin{itemize}
-    \item La malla QGeoidCOL2023 se validó con controles explícitos y documentados: es una
-    malla completa, rectangular y regular de $212\times152$ nodos con paso de $5'$, sin
-    datos inválidos, duplicados ni faltantes.
-    \item Los seis métodos se implementaron con un núcleo común ($\hat\zeta=\sum w_i\zeta_i$)
-    que expone nodos, pesos y contribuciones y verifica $\sum w_i=1$ en cada cálculo. Las
-    implementaciones bilineal, bicúbica y de vecino más cercano coinciden con \texttt{interp2}
-    a nivel de $10^{-14}$\,m. Ningún método extrapola, y la bicúbica declara su falta de
-    soporte en el borde en lugar de sustituirse.
-    \item En los puntos de control, la elección del método cambia $\zeta$ (y por tanto
-    $H^N$) entre \SI{21}{mm} y \SI{83}{mm} entre los métodos continuos, y hasta \SI{25}{cm} con
-    el vecino más cercano. Las diferencias son mayores donde el campo tiene más gradiente
-    y curvatura.
-    \item La validación cruzada por decimación ordena los métodos así: bicúbica, bilineal
-    $\approx$ triángulos, kriging, IDW y vecino más cercano. La bilineal sigue siendo una
-    elección razonable por su simplicidad y trazabilidad, y la bicúbica es preferible donde
-    tiene soporte.
-    \item La diferencia $\zeta-N$ entre QGeoidCOL2023 y GeoCol2004 es negativa en los cinco puntos
-    (de \SI{-0.7}{m} a \SI{-4.1}{m}, media de \SI{-2.1}{m}). Esa diferencia no se explica por la separación geoide--cuasigeoide sino por el
-    sesgo de GeoCol2004, que frente a la nivelación es del orden de lo documentado para ese modelo (unos
-    \SI{2}{m}). La diferencia frente a la nivelación de QGeoidCOL2023 es de \SI{2}{cm} o menos en P1 y P5.
-    \item Frente a EGM2008 las diferencias son de \SI{-21}{cm} a \SI{+70}{cm} (RMS de \SI{36}{cm}). En los
-    puntos bajos donde EGM2008 se aparta más (P2 y P5) la altura con QGeoidCOL2023 es la que más se acerca a
-    la nivelación, de modo que la diferencia se atribuye principalmente a EGM2008, con la reserva de las
-    posibles diferencias de referencia (sistema de marea y término de grado cero), que no se cuantificaron.
-    \item En los dos puntos de montaña, QGeoidCOL2023 y EGM2008 difieren de la nivelación en decímetros y
-    con el mismo signo. Esto indica un componente común a ambos modelos o a los datos de esos puntos, y no
-    permite concluir sobre la exactitud de QGeoidCOL2023 en zonas montañosas.
-    \item La elección del modelo influye sobre la altura mucho más (decímetros a metros) que la del
-    método de interpolación (centímetros). En consecuencia, $N$ y $\zeta$ (y $H$ y $H^N$) no son
-    intercambiables.
-    \item Limitaciones: cinco puntos (todos al norte de \ang{4.6} N, sin puntos en la Amazonía, el Pacífico ni el
-    sur) no bastan para estimar la exactitud de los modelos; los valores de GeoCol2004 y EGM2008 provienen del
-    archivo de puntos (MAGNA 7.0 y la calculadora de UNAVCO; EGM2008 se verificó de forma independiente); y las
-    alturas niveladas (ajustadas, de tipo no especificado) no se reducen a un mismo datum vertical con el IHRS.
-\end{itemize}
+
+La malla QGeoidCOL2023 se validó con controles explícitos y documentados: es completa,
+rectangular y regular, de $212\times152$ nodos con paso de $5'$, sin datos inválidos,
+duplicados ni faltantes.
+
+\vspace{0.3cm}
+Los seis métodos se implementaron con un núcleo común ($\hat\zeta=\sum w_i\zeta_i$) que expone
+nodos, pesos y contribuciones y verifica $\sum w_i=1$ en cada cálculo. La bilineal, la bicúbica
+y el vecino más cercano coinciden con \texttt{interp2} a nivel de $10^{-14}$\,m. Ningún método
+extrapola, y la bicúbica declara su falta de soporte en el borde en lugar de sustituirse.
+
+\vspace{0.3cm}
+En los puntos de control, la elección del método cambia $\zeta$ (y por tanto $H^N$) entre
+\SI{21}{mm} y \SI{83}{mm} entre los métodos continuos, y hasta \SI{25}{cm} con el vecino más
+cercano, con diferencias mayores donde el campo tiene más gradiente y curvatura.
+
+\vspace{0.3cm}
+La validación cruzada por decimación ordena los métodos así: bicúbica, bilineal $\approx$
+triángulos, kriging, IDW y vecino más cercano. La bicúbica es preferible donde tiene soporte, y
+la bilineal sigue siendo una elección razonable por su simplicidad y trazabilidad.
+
+\vspace{0.3cm}
+La diferencia $\zeta-N$ entre QGeoidCOL2023 y GeoCol2004 es negativa en los cinco puntos (de
+\SI{-0.7}{m} a \SI{-4.1}{m}, media de \SI{-2.1}{m}). No se explica por la separación
+geoide--cuasigeoide sino por el sesgo de GeoCol2004, del orden de lo documentado para ese modelo
+(unos \SI{2}{m}); QGeoidCOL2023 difiere de la nivelación \SI{2}{cm} o menos en P1 y P5.
+
+\vspace{0.3cm}
+Frente a EGM2008 las diferencias van de \SI{-21}{cm} a \SI{+70}{cm} (RMS de \SI{36}{cm}). En
+P2 y P5 la altura con QGeoidCOL2023 es la más cercana a la nivelación, así que la diferencia se
+atribuye principalmente a EGM2008, con la reserva de las diferencias de referencia (sistema de
+marea y término de grado cero), que en estos cinco puntos no se cuantificaron.
+
+\vspace{0.3cm}
+En los dos puntos de montaña, QGeoidCOL2023 y EGM2008 difieren de la nivelación en decímetros y
+con el mismo signo, lo que indica un componente común a ambos modelos o a los datos de esos
+puntos y no permite concluir sobre la exactitud de QGeoidCOL2023 en zonas montañosas.
+
+\vspace{0.3cm}
+\textbf{MATLAB frente a Python.} Con dos criterios independientes (la reconstrucción de la
+propia malla en MATLAB y el ajuste del modelo de desplazamiento e inclinación a la discrepancia
+$l=h-H-N$ en 4210 puntos de la Red Nacional de Nivelación en Python), la \textbf{bicúbica} resulta
+el mejor método: RMSE de \SI{58}{mm} en la validación cruzada y mayor $R^2_{aj}$ con las dos mallas
+($0{,}2053$ con QGeoidCOL2023 y $0{,}3923$ con EGM2008). Con QGeoidCOL2023 el orden completo de los
+métodos coincide en ambas herramientas, lo que respalda el uso de la bicúbica, y de la bilineal como
+alternativa sencilla, para consultar el modelo. La única diferencia está en el IDW: el exponente que
+mejor reconstruye la malla ($p=6$) no mejora el ajuste contra la nivelación, por lo que los
+parámetros de un método deben validarse con los datos de uso y no solo con la malla.
+
+\vspace{0.3cm}
+Las dos herramientas coinciden en que la elección del modelo influye sobre la altura mucho más
+(decímetros a metros) que la del método de interpolación (centímetros); en consecuencia, $N$ y
+$\zeta$ (y $H$ y $H^N$) no son intercambiables. En la red, el desplazamiento $\delta H$ varía como
+máximo \SI{1.4}{cm} entre métodos, pero pasa de \SI{0.18}{m} con QGeoidCOL2023 a \SI{1.07}{m} con
+EGM2008. Este último valor es del orden de los $0{,}99\pm0{,}03$~m de \citet{guimaraes2025} para el
+datum de Buenaventura. QGeoidCOL2023 absorbe la mayor parte de ese desplazamiento y deja una
+dispersión menor ($\hat\sigma_0=\SI{0.23}{m}$ frente a \SI{0.33}{m}), lo que confirma con muchos más
+puntos lo que sugerían los cinco de control: el modelo nacional describe mejor la red.
+
+\vspace{0.3cm}
+\textbf{Limitaciones:} cinco puntos (todos al norte de \ang{4.6} N, sin puntos en la Amazonía, el Pacífico
+ni el sur) no bastan para estimar la exactitud de los modelos; los valores de GeoCol2004 y EGM2008
+provienen del archivo de puntos (MAGNA 7.0 y la calculadora de UNAVCO; EGM2008 se verificó de forma
+independiente); y las alturas niveladas de los cinco puntos (ajustadas, de tipo no especificado) no
+se reducen a un mismo datum vertical con el IHRS.
+
+
 
 % =====================================================================
 \begin{thebibliography}{9}

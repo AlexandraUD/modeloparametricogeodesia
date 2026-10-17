@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>QGeoidCOL2023 — Grupo 2</title>
+<style>
+  :root{
+    --azul:#002060; --azul2:#2e75b6; --celeste:#e8f0fa; --gris:#5f6b7a; --negro:#1b2631;
+    --verde:#1e8449; --verdeclaro:#d5f5e3; --rojo:#b03a2e; --naranja:#e67e22; --fondo:#f4f6f9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#2b313b;font-family:"Segoe UI",Calibri,Arial,sans-serif;color:var(--negro)}
+  .slide{
+    width:1280px;height:720px;margin:24px auto;background:#fff;position:relative;overflow:hidden;
+    box-shadow:0 6px 24px rgba(0,0,0,.35);padding:58px 70px 50px 70px;display:flex;flex-direction:column;
+  }
+  .slide::before{content:"";position:absolute;left:0;top:0;width:100%;height:10px;background:var(--azul)}
+  .slide .num{position:absolute;right:34px;bottom:18px;font-size:14px;color:var(--gris)}
+  .slide .pie{position:absolute;left:70px;bottom:18px;font-size:13px;color:var(--gris)}
+  .sec{font-size:15px;font-weight:700;letter-spacing:.12em;color:var(--azul2);text-transform:uppercase;margin-bottom:6px}
+  h1{font-size:44px;color:var(--azul);line-height:1.12;margin-bottom:6px}
+  h2{font-size:22px;font-weight:600;color:var(--gris);margin-bottom:24px}
+  h3{font-size:20px;color:var(--azul);margin-bottom:8px}
+  p,li{font-size:19px;line-height:1.42}
+  ul{padding-left:24px} li{margin-bottom:8px}
+  b{color:var(--azul)}
+  .row{display:flex;gap:26px;flex:1;min-height:0}
+  .col{flex:1;display:flex;flex-direction:column;gap:16px;min-height:0}
+  .card{background:var(--fondo);border-left:5px solid var(--azul2);padding:16px 20px;border-radius:4px}
+  .card.verde{border-left-color:var(--verde);background:#f0faf4}
+  .card.rojo{border-left-color:var(--rojo);background:#fbf1f0}
+  .card.naranja{border-left-color:var(--naranja);background:#fdf4ec}
+  .card p,.card li{font-size:17px}
+  .tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.08em;color:#fff;background:var(--azul2);padding:2px 8px;border-radius:3px;margin-bottom:6px}
+  .tag.verde{background:var(--verde)} .tag.rojo{background:var(--rojo)} .tag.gris{background:var(--gris)} .tag.naranja{background:var(--naranja)}
+  .eq{font-family:"Cambria Math",Cambria,"Times New Roman",serif;font-size:26px;text-align:center;background:var(--celeste);
+      padding:12px 16px;border-radius:4px;color:var(--negro);margin:6px 0}
+  .eq.chico{font-size:21px}
+  .big{font-size:58px;font-weight:800;color:var(--azul);line-height:1}
+  .big.verde{color:var(--verde)} .big.rojo{color:var(--rojo)}
+  .lbl{font-size:15px;color:var(--gris);margin-top:4px}
+  .ph{flex:1;min-height:150px;border:3px dashed #9aa5b1;border-radius:6px;background:#fafbfc;display:flex;align-items:center;
+      justify-content:center;text-align:center;color:var(--gris);font-size:18px;font-weight:600;padding:16px}
+  .ph::before{content:"🖼  ";font-size:24px}
+  table{border-collapse:collapse;width:100%;font-size:17px}
+  th{background:var(--azul);color:#fff;font-weight:600;padding:8px 10px;text-align:left}
+  td{padding:7px 10px;border-bottom:1px solid #dde3ea}
+  tr:nth-child(even) td{background:#f7f9fb}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  tr.mejor td{background:var(--verdeclaro)!important;font-weight:700;color:var(--verde)}
+  tr.malo td{color:var(--rojo)}
+  sub,sup{font-size:.7em}
+  /* portada */
+  .portada{background:linear-gradient(135deg,#002060 0%,#16407f 60%,#2e75b6 100%);color:#fff;justify-content:center}
+  .portada::before{display:none}
+  .portada h1{color:#fff;font-size:62px}
+  .portada h2{color:#d6e4f0;font-size:26px;margin-bottom:40px;max-width:950px}
+  .portada .linea{width:120px;height:5px;background:#9fc5e8;margin:18px 0 26px}
+  .portada p{color:#e8eef4;font-size:19px}
+  .portada .num,.portada .pie{color:#9fc5e8}
+  .gracias{background:linear-gradient(135deg,#002060,#2e75b6);color:#fff;justify-content:center;align-items:center;text-align:center}
+  .gracias::before{display:none}
+  .gracias h1{color:#fff;font-size:64px}
+  .gracias p{color:#d6e4f0;font-size:15px;max-width:1000px;margin-top:6px}
+  .ayuda{position:fixed;right:16px;bottom:12px;color:#c8d1dc;font-size:13px;font-family:Segoe UI,Arial}
+  @media print{
+    @page{size:1280px 720px;margin:0}
+    html,body{background:#fff}
+    .slide{margin:0;box-shadow:none;page-break-after:always;break-after:page}
+    .ayuda{display:none}
+    .ph{border-color:#c0c7d0}
+  }
+</style>
+</head>
+<body>
+
+<!-- 1 PORTADA -->
+<section class="slide portada">
+  <div class="sec" style="color:#9fc5e8">Sistemas de Posicionamiento Geodésico · Ejercicio No. 3</div>
+  <h1>QGeoidCOL2023</h1>
+  <h2>Interpolación de ζ, determinación de la altura normal y modelo paramétrico frente a la Red Nacional de Nivelación</h2>
+  <div class="linea"></div>
+  <p><b style="color:#fff">Grupo 2:</b> A. T. Díaz · J. S. López · N. L. Rodríguez · A. A. Daza</p>
+  <p><b style="color:#fff">Docente:</b> John Alexander Orduña Díaz</p>
+  <p style="margin-top:10px">Maestría en Ciencias de la Información y las Comunicaciones — Énfasis en Geomática · 2026-3</p>
+  <div class="num">1</div>
+</section>
+
+<!-- 2 MARCO CONCEPTUAL -->
+<section class="slide">
+  <div class="sec">01 · Marco conceptual</div>
+  <h1>Superficies de referencia</h1>
+  <h2>Tres superficies, tres alturas</h2>
+  <div class="row">
+    <div class="col">
+      <div class="card"><span class="tag">Relación entre alturas</span>
+        <div class="eq">h = H + N = H<sup>N</sup> + ζ</div>
+        <p>La altura elipsoidal <b>h</b> (GNSS) se convierte en altura normal <b>H<sup>N</sup> = h − ζ</b> con la anomalía de altura ζ del cuasigeoide.</p>
+      </div>
+      <div class="card"><span class="tag">Geoide vs. cuasigeoide</span>
+        <div class="eq chico">N − ζ ≈ (Δg<sub>B</sub> / γ̄) · H</div>
+        <p>Depende de la anomalía de Bouguer y de la altura: milímetros en zonas bajas, decímetros en montaña. <b>N y ζ no son intercambiables.</b></p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card"><span class="tag">Sistema IHRS / GRS80</span>
+        <p>QGeoidCOL2023 está referido al IHRS con W<sub>0</sub> = 62 636 853,4 m²/s², en el sistema de <b>marea cero</b>.</p>
+      </div>
+      <div class="ph">Agregar pantallazo: esquema elipsoide – geoide – cuasigeoide (opcional)</div>
+    </div>
+  </div>
+  <div class="num">2</div>
+</section>
+
+<!-- 3 DATOS Y VALIDACIÓN -->
+<section class="slide">
+  <div class="sec">02 · Datos y validación</div>
+  <h1>Malla 100 % validada</h1>
+  <h2>Estructura y control de calidad de QGeoidCOL2023 (<i>cargarYValidarMalla</i>)</h2>
+  <div class="row">
+    <div class="col" style="flex:.9">
+      <div class="row" style="flex:0;gap:16px">
+        <div class="card" style="flex:1"><div class="big">32 224</div><div class="lbl">nodos · 212 × 152</div></div>
+        <div class="card" style="flex:1"><div class="big">5′</div><div class="lbl">≈ 9,2 km de resolución</div></div>
+      </div>
+      <div class="card">
+        <ul>
+          <li><b>Integridad:</b> 0 líneas no numéricas, 0 valores Inf o NaN.</li>
+          <li><b>Duplicados y faltantes:</b> ninguno; malla rectangular completa.</li>
+          <li><b>Regularidad del paso:</b> desviación máx. 2,2×10⁻¹⁵° (lat) y 2,8×10⁻¹⁴° (lon).</li>
+          <li><b>Cobertura:</b> 4,78° S a 12,80° N; 79,30° W a 66,72° W.</li>
+          <li><b>ζ:</b> de −40 m a +33 m; media 6,93 m; desv. 13,69 m.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col"><div class="ph">Agregar pantallazo: Figura 1 del informe (malla QGeoidCOL2023 e histograma de ζ)</div></div>
+  </div>
+  <div class="num">3</div>
+</section>
+
+<!-- 4 DESARROLLO COMPUTACIONAL -->
+<section class="slide">
+  <div class="sec">03 · Desarrollo computacional</div>
+  <h1>MATLAB autocontenido</h1>
+  <h2>Arquitectura y flujo de trabajo (appQGeoidCOL2023.m)</h2>
+  <div class="row">
+    <div class="col">
+      <div class="card"><span class="tag">Fase 1</span><p><b>Cargue y validación:</b> reconstrucción de la malla y autoverificación contra <i>interp2</i>.</p></div>
+      <div class="card"><span class="tag">Fase 2</span><p><b>Control de cobertura:</b> sin extrapolación y con validación del soporte de nodos.</p></div>
+      <div class="card"><span class="tag">Fase 3</span><p><b>Núcleo de interpolación:</b> cada método entrega nodos y pesos; ζ̂ = Σ wᵢζᵢ en un solo lugar.</p></div>
+      <div class="card"><span class="tag">Fase 4</span><p><b>Visualización y reportes:</b> vista local, tablas de contribución y exportación (CSV, TXT, PNG).</p></div>
+    </div>
+    <div class="col">
+      <div class="card verde"><p><b>Cero dependencias externas:</b> no requiere Mapping ni Statistics Toolbox.<br>
+        <b>Reproducible:</b> diagonal fija SW–NE y semilla fija.<br>
+        <b>Transparente:</b> CSV sin redondear; pantalla al milímetro.</p></div>
+      <div class="ph">Agregar pantallazo: Figura 6 del informe (diagrama de flujo) o Figura 3 (interfaz MATLAB)</div>
+    </div>
+  </div>
+  <div class="num">4</div>
+</section>
+
+<!-- 5 METODOLOGÍA -->
+<section class="slide">
+  <div class="sec">04 · Metodología</div>
+  <h1>Los 6 métodos de interpolación</h1>
+  <h2>Todos producen ζ̂ = Σ wᵢ ζᵢ con Σ wᵢ = 1 — ninguno extrapola</h2>
+  <div class="row" style="flex-wrap:wrap;gap:16px">
+    <div class="card rojo" style="flex:1 1 30%"><span class="tag rojo">Discontinuo</span><h3>Vecino más cercano</h3><p>Valor del nodo más próximo. Escalones entre nodos.</p></div>
+    <div class="card" style="flex:1 1 30%"><span class="tag">Continuo C⁰</span><h3>Lineal por triángulos</h3><p>Coordenadas baricéntricas con diagonal fija SW–NE.</p></div>
+    <div class="card" style="flex:1 1 30%"><span class="tag">Método habitual</span><h3>Bilineal</h3><p>4 esquinas de la celda. Exacto en los nodos y fácil de verificar.</p></div>
+    <div class="card verde" style="flex:1 1 30%"><span class="tag verde">Alta precisión</span><h3>Bicúbica (Keys, a = −0,5)</h3><p>Convolución cúbica con 16 nodos (4 × 4). Sigue la curvatura; no aplica en el borde.</p></div>
+    <div class="card naranja" style="flex:1 1 30%"><span class="tag naranja">Promedio local</span><h3>IDW (p = 2, k = 16)</h3><p>Pesos ∝ 1/dᵖ. Tiende a aplanar los gradientes.</p></div>
+    <div class="card" style="flex:1 1 30%"><span class="tag gris">Estadístico</span><h3>Kriging ordinario</h3><p>Semivariograma local (ventana 12 × 12) ajustado por mínimos cuadrados ponderados.</p></div>
+  </div>
+  <div class="num">5</div>
+</section>
+
+<!-- 6 VERIFICACIÓN -->
+<section class="slide">
+  <div class="sec">05 · Verificación de código</div>
+  <h1>Autoverificación vs. MATLAB interp2</h1>
+  <h2>Diferencias al nivel de la precisión de máquina</h2>
+  <div class="row">
+    <div class="col" style="flex:1.4">
+      <table>
+        <tr><th>Método</th><th>vs. interp2 (m)</th><th class="n">máx |1 − Σwᵢ|</th></tr>
+        <tr><td>Vecino más cercano</td><td>0 ('nearest')</td><td class="n">0</td></tr>
+        <tr><td>Lineal por triángulos</td><td>— (diagonal fija)</td><td class="n">1,1 × 10⁻¹⁶</td></tr>
+        <tr><td>Bilineal</td><td>7,1 × 10⁻¹⁵ ('linear')</td><td class="n">2,2 × 10⁻¹⁶</td></tr>
+        <tr><td>Bicúbica</td><td>6,8 × 10⁻¹⁴ ('cubic')</td><td class="n">2,3 × 10⁻¹⁵</td></tr>
+        <tr><td>IDW</td><td>— (distancia métrica)</td><td class="n">5,6 × 10⁻¹⁶</td></tr>
+        <tr><td>Kriging ordinario</td><td>— (variograma local)</td><td class="n">4,4 × 10⁻¹⁶</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <div class="card verde"><span class="tag verde">Normalización</span><p>Σ wᵢ = 1 se verifica en <b>cada</b> consulta: una superficie constante se reproduce exactamente.</p></div>
+      <div class="card"><span class="tag">Control de bordes</span><p>En el borde exterior la bicúbica se declara <b>no aplicable</b> y no se sustituye en silencio.</p></div>
+    </div>
+  </div>
+  <div class="num">6</div>
+</section>
+
+<!-- 7 VALIDACIÓN CRUZADA -->
+<section class="slide">
+  <div class="sec">06 · Evaluación de exactitud</div>
+  <h1>Validación cruzada por decimación</h1>
+  <h2>Malla decimada a 10′ y 400 nodos retirados (semilla fija)</h2>
+  <div class="row">
+    <div class="col" style="flex:1.15">
+      <table>
+        <tr><th>#</th><th>Método</th><th class="n">RMSE (mm)</th><th class="n">MAE (mm)</th><th class="n">P95 (mm)</th></tr>
+        <tr class="mejor"><td>1</td><td>Bicúbica</td><td class="n">58,0</td><td class="n">29,5</td><td class="n">141,4</td></tr>
+        <tr><td>2</td><td>Bilineal</td><td class="n">86,6</td><td class="n">48,3</td><td class="n">187,2</td></tr>
+        <tr><td>3</td><td>Lineal por triángulos</td><td class="n">88,7</td><td class="n">49,8</td><td class="n">184,0</td></tr>
+        <tr><td>4</td><td>Kriging ordinario</td><td class="n">135,9</td><td class="n">64,3</td><td class="n">315,6</td></tr>
+        <tr><td>5</td><td>IDW (p = 2, k = 16)</td><td class="n">212,3</td><td class="n">133,4</td><td class="n">449,3</td></tr>
+        <tr class="malo"><td>6</td><td>Vecino más cercano</td><td class="n">480,7</td><td class="n">326,3</td><td class="n">997,0</td></tr>
+      </table>
+      <div class="row" style="flex:0;gap:14px">
+        <div class="card verde" style="flex:1"><p><b>Bicúbica:</b> 33 % menos RMSE que la bilineal.</p></div>
+        <div class="card rojo" style="flex:1"><p><b>Vecino más cercano:</b> errores de hasta 2,5 m.</p></div>
+      </div>
+    </div>
+    <div class="col"><div class="ph">Agregar pantallazo: Figura 9 del informe (diagrama de cajas e indicadores)</div></div>
+  </div>
+  <div class="num">7</div>
+</section>
+
+<!-- 8 ANÁLISIS LOCAL P4 -->
+<section class="slide">
+  <div class="sec">07 · Análisis local</div>
+  <h1>Comportamiento en P4 (Bogotá)</h1>
+  <h2>Zona de fuerte gradiente · bilineal ζ̂ = 23,360 m (u = 0,8455, v = 0,7796)</h2>
+  <div class="row">
+    <div class="col">
+      <table>
+        <tr><th>Nodo</th><th class="n">ζᵢ (m)</th><th class="n">wᵢ</th><th class="n">wᵢζᵢ (m)</th></tr>
+        <tr><td>NE (4,63°; −74,05°)</td><td class="n">23,332</td><td class="n">0,6592</td><td class="n">15,3804</td></tr>
+        <tr><td>SE (4,55°; −74,05°)</td><td class="n">23,729</td><td class="n">0,1863</td><td class="n">4,4211</td></tr>
+        <tr><td>NW (4,63°; −74,13°)</td><td class="n">22,937</td><td class="n">0,1204</td><td class="n">2,7626</td></tr>
+        <tr><td>SW (4,55°; −74,13°)</td><td class="n">23,388</td><td class="n">0,0340</td><td class="n">0,7962</td></tr>
+      </table>
+      <div class="card"><p><b>Pesos negativos:</b> la bicúbica (8 nodos) y el kriging (6 nodos) los asignan a la corona exterior para no aplanar el campo.</p></div>
+      <div class="card naranja"><p><b>Dispersión entre métodos continuos:</b> 47,6 mm en P4, frente a 21,2 mm en P5 (Arauca, zona llana).</p></div>
+    </div>
+    <div class="col"><div class="ph">Agregar pantallazo: Figura 7 del informe (vista local de los 6 métodos en P4)</div></div>
+  </div>
+  <div class="num">8</div>
+</section>
+
+<!-- 9 GEOCOL2004 -->
+<section class="slide">
+  <div class="sec">08 · Comparación multimodelo</div>
+  <h1>QGeoidCOL2023 vs. GeoCol2004</h1>
+  <h2>Diferencia sistemática ζ − N en los puntos de control</h2>
+  <div class="row">
+    <div class="col" style="flex:.8">
+      <table>
+        <tr><th>Punto</th><th class="n">ζ − N (m)</th></tr>
+        <tr><td>P1 (Guajira)</td><td class="n">−0,733</td></tr>
+        <tr><td>P2 (Córdoba)</td><td class="n">−0,998</td></tr>
+        <tr><td>P3 (N. Santander)</td><td class="n">−4,072</td></tr>
+        <tr><td>P4 (Bogotá)</td><td class="n">−3,299</td></tr>
+        <tr><td>P5 (Arauca)</td><td class="n">−1,584</td></tr>
+      </table>
+      <div class="card rojo"><div class="big rojo">−2,14 m</div><div class="lbl">diferencia media en los cinco puntos</div></div>
+    </div>
+    <div class="col">
+      <div class="card"><span class="tag">Explicación geodésica</span>
+        <p>No se explica por la separación geoide–cuasigeoide: es de signo contrario y un orden mayor. Es coherente con el <b>sesgo de ~2 m documentado para GeoCol2004</b> (modelo global de grado 200, MDT de ~1 km). QGeoidCOL2023 incorpora gravimetría terrestre y aerotransportada, altimetría y modelos satelitales GRACE/GOCE.</p></div>
+      <div class="ph">Agregar pantallazo: Figura 14a del informe (diferencias QGeoid − GeoCol2004)</div>
+    </div>
+  </div>
+  <div class="num">9</div>
+</section>
+
+<!-- 10 EGM2008 -->
+<section class="slide">
+  <div class="sec">09 · Comparación multimodelo</div>
+  <h1>QGeoidCOL2023 vs. EGM2008</h1>
+  <h2>Modelo global vs. regional (ζ − N<sub>EGM</sub>)</h2>
+  <div class="row">
+    <div class="col" style="flex:.85">
+      <div class="card"><div class="big">35,7 cm</div><div class="lbl">RMS de la diferencia en los cinco puntos de control (de −21 cm a +70 cm)</div></div>
+      <div class="card"><span class="tag">Referencias distintas</span><p>EGM2008 está en <b>tide free</b> y con término de grado cero (≈ −41 cm); QGeoidCOL2023 en <b>zero tide</b> e IHRS.</p></div>
+      <div class="card verde"><span class="tag verde">Resolución topográfica</span><p>QGeoidCOL2023 incorpora gravimetría aerotransportada reciente, y el efecto topográfico se modela por síntesis armónica esférica (dV_ELL_Earth2014 y ERTM2160).</p></div>
+    </div>
+    <div class="col"><div class="ph">Agregar pantallazo: Figura 12 del informe (diferencias por punto con GeoCol2004 y EGM2008)</div></div>
+  </div>
+  <div class="num">10</div>
+</section>
+
+<!-- 11 CONTROL DE CAMPO -->
+<section class="slide">
+  <div class="sec">10 · Control de campo</div>
+  <h1>Coherencia con la nivelación geométrica</h1>
+  <h2>Altura de cada modelo menos la altura nivelada</h2>
+  <div class="row">
+    <div class="col" style="flex:1.2">
+      <table>
+        <tr><th>Punto</th><th class="n">H nivelada (m)</th><th class="n">QGeoid (cm)</th><th class="n">EGM2008 (cm)</th><th class="n">GeoCol (cm)</th></tr>
+        <tr><td>P1 (Guajira)</td><td class="n">48,434</td><td class="n">−1,8</td><td class="n">−5,0</td><td class="n">−75,1</td></tr>
+        <tr><td>P2 (Córdoba)</td><td class="n">95,573</td><td class="n">+15,9</td><td class="n">+39,3</td><td class="n">−83,8</td></tr>
+        <tr><td>P3 (N. Sant.)</td><td class="n">3216,550</td><td class="n">+65,2</td><td class="n">+44,6</td><td class="n">−342,0</td></tr>
+        <tr><td>P4 (Bogotá)</td><td class="n">2702,640</td><td class="n">−61,9</td><td class="n">−38,9</td><td class="n">−391,8</td></tr>
+        <tr><td>P5 (Arauca)</td><td class="n">184,956</td><td class="n">+1,0</td><td class="n">+70,6</td><td class="n">−157,4</td></tr>
+      </table>
+      <div class="row" style="flex:0;gap:14px">
+        <div class="card verde" style="flex:1"><span class="tag verde">Puntos bajos (P1, P2, P5)</span><p><b>RMS 9,3 cm</b> con QGeoid, frente a 46,7 cm (EGM2008) y 111,7 cm (GeoCol2004).</p></div>
+        <div class="card naranja" style="flex:1"><span class="tag naranja">Montaña (P3, P4)</span><p>~60 cm, del mismo signo que EGM2008: componente común a ambos modelos o a los datos.</p></div>
+      </div>
+    </div>
+    <div class="col" style="flex:.8"><div class="ph">Agregar pantallazo: Figura 13 del informe (alturas de cada modelo menos la nivelada)</div></div>
+  </div>
+  <div class="num">11</div>
+</section>
+
+<!-- 12 SISTEMAS DE MAREAS -->
+<section class="slide">
+  <div class="sec">11 · Sistemas de mareas</div>
+  <h1>Tres convenciones para la marea permanente</h1>
+  <h2>El Sol y la Luna deforman la Tierra de forma permanente: ¿cómo se trata ese efecto?</h2>
+  <div class="row">
+    <div class="col card"><span class="tag naranja">Mean tide</span><h3>Marea media</h3>
+      <p>Se conserva la deformación permanente de la corteza, y el potencial incluye el promedio del potencial generador de mareas.</p>
+      <p style="margin-top:10px"><b>Alturas niveladas H</b></p></div>
+    <div class="col card"><span class="tag gris">Tide free</span><h3>Libre de marea</h3>
+      <p>Se eliminan el potencial generador de mareas y la deformación permanente que produce.</p>
+      <p style="margin-top:10px"><b>Alturas GNSS h · EGM2008</b></p></div>
+    <div class="col card verde"><span class="tag verde">Zero tide</span><h3>Marea cero</h3>
+      <p>Se elimina la atracción directa del Sol y la Luna, pero se conserva la deformación que ya causaron.</p>
+      <p style="margin-top:10px"><b>IHRS · QGeoidCOL2023</b></p></div>
+  </div>
+  <div class="eq chico" style="margin-top:18px">Para comparar h, H y N deben estar en la misma convención → todo se lleva a <b>zero tide</b></div>
+  <div class="num">12</div>
+</section>
+
+<!-- 13 PYTHON: DATOS Y DEPURACIÓN -->
+<section class="slide">
+  <div class="sec">12 · Herramienta en Python</div>
+  <h1>Red Nacional de Nivelación: datos y depuración</h1>
+  <h2>parametrico1.py (núcleo de cálculo) + parametrico2.py (interfaz de 7 pestañas) · solo biblioteca estándar</h2>
+  <div class="row">
+    <div class="col">
+      <div class="card"><span class="tag">Datos</span><p><b>4272 puntos</b> de la Red Nacional de Nivelación (IGAC) con h y H.<br>Mallas: QGeoidCOL2023 (5′) y EGM2008 (2′, ICGEM).</p></div>
+      <div class="card"><span class="tag">Corrección a zero tide (Guimarães et al., 2025)</span>
+        <p>h (tide free): <b>+5,3 a +6,0 cm</b> · H (mean tide): <b>+8,7 a +9,9 cm</b><br>N de EGM2008 (tide free): <b>+2,6 a +3,0 cm</b></p></div>
+      <div class="card verde"><span class="tag verde">Depuración</span>
+        <p><b>4210 aceptados · 62 apartados:</b> 22 con h nula, 3 duplicados, 2 con |h − H| &gt; 150 m y 35 por error grueso (5 × desviación robusta). Todos quedan en <i>puntos_rechazados.xlsx</i>.</p></div>
+    </div>
+    <div class="col"><div class="ph">Agregar pantallazo: Figura 11 del informe (malla EGM2008 con los puntos de la red)</div></div>
+  </div>
+  <div class="num">13</div>
+</section>
+
+<!-- 14 MODELO PARAMÉTRICO -->
+<section class="slide">
+  <div class="sec">13 · Modelo paramétrico</div>
+  <h1>Discrepancia y modelo de desplazamiento e inclinación</h1>
+  <h2>Basado en Guimarães et al. (2025)</h2>
+  <div class="row">
+    <div class="col">
+      <div class="card"><span class="tag">Discrepancia</span><div class="eq">l = h − H − N</div>
+        <p>Si las tres alturas fueran exactas, l sería constante: el desplazamiento del datum.</p></div>
+      <div class="card"><span class="tag">Modelo (mínimos cuadrados, P = I)</span>
+        <div class="eq chico">l = δH + x₁(φ − φ₀) + x₂(λ − λ₀) cos φ</div>
+        <p><b>δH:</b> desplazamiento del datum · <b>x₁, x₂:</b> inclinaciones N–S y E–O.</p></div>
+      <div class="card verde"><span class="tag verde">Selección</span>
+        <div class="eq chico">R²<sub>aj</sub> = 1 − (1 − R²)(n − 1)/(n − u)</div>
+        <p>Mejor método: mayor R²<sub>aj</sub>. En el kriging, el semivariograma se elige por menor SSRw.</p></div>
+    </div>
+    <div class="col"><div class="ph">Agregar pantallazo: Figura 10 del informe (semivariograma del kriging ordinario)</div></div>
+  </div>
+  <div class="num">14</div>
+</section>
+
+<!-- 15 RESULTADOS PYTHON -->
+<section class="slide">
+  <div class="sec">14 · Resultados del modelo paramétrico</div>
+  <h1>El datum de Buenaventura frente a cada geoide</h1>
+  <h2>n = 4210 puntos · todos los datos en zero tide</h2>
+  <div class="row">
+    <div class="col" style="flex:1.1">
+      <table>
+        <tr><th></th><th class="n">QGeoidCOL2023</th><th class="n">EGM2008</th></tr>
+        <tr class="mejor"><td>Mejor método</td><td class="n">Bicúbica</td><td class="n">Bicúbica</td></tr>
+        <tr><td>R²<sub>aj</sub></td><td class="n">0,205</td><td class="n">0,392</td></tr>
+        <tr><td>δH</td><td class="n">0,18 m</td><td class="n">1,07 m</td></tr>
+        <tr><td>σ₀</td><td class="n">0,23 m</td><td class="n">0,33 m</td></tr>
+        <tr><td>x₁ (N–S)</td><td class="n">−4 cm/°</td><td class="n">−9 cm/°</td></tr>
+      </table>
+      <div class="card"><ul>
+        <li>Con EGM2008 el datum queda <b>~1,07 m</b> sobre el geoide; Guimarães et al. reportan <b>0,99 ± 0,03 m</b> para Colombia.</li>
+        <li>QGeoidCOL2023 absorbe casi todo el desplazamiento y deja <b>menor dispersión</b>.</li>
+        <li>La inclinación N–S sugiere acumulación de errores de nivelación desde el datum.</li>
+      </ul></div>
+    </div>
+    <div class="col"><div class="ph">Agregar pantallazo: Tablas 17 y 18 del informe o la pestaña «Resultados» de la interfaz de Python</div></div>
+  </div>
+  <div class="num">15</div>
+</section>
+
+<!-- 16 MATLAB VS PYTHON -->
+<section class="slide">
+  <div class="sec">15 · Síntesis</div>
+  <h1>MATLAB vs. Python</h1>
+  <h2>Dos criterios independientes, una misma conclusión</h2>
+  <div class="row">
+    <div class="col card"><span class="tag">MATLAB</span><h3>Contra la propia malla</h3>
+      <p>Validación cruzada por decimación.</p><div class="big verde" style="margin-top:14px">58 mm</div><div class="lbl">RMSE de la bicúbica</div></div>
+    <div class="col card"><span class="tag">Python</span><h3>Contra la nivelación</h3>
+      <p>Ajuste de l = h − H − N en 4210 puntos.</p><div class="big verde" style="margin-top:14px">0,205 · 0,392</div><div class="lbl">R²<sub>aj</sub> de la bicúbica (QGeoid · EGM2008)</div></div>
+    <div class="col">
+      <div class="card verde"><p>Ambos eligen la <b>bicúbica</b>, y con QGeoidCOL2023 el <b>orden de los 6 métodos es el mismo</b>.</p></div>
+      <div class="card naranja"><p>Única diferencia: el IDW con el p óptimo para la malla (p = 6) no mejora frente a la nivelación.</p></div>
+      <div class="card"><p>El método mueve δH ≤ <b>1,4 cm</b>; el modelo lo cambia de <b>0,18 m a 1,07 m</b>.</p></div>
+    </div>
+  </div>
+  <div class="num">16</div>
+</section>
+
+<!-- 17 CONCLUSIONES -->
+<section class="slide">
+  <div class="sec">16 · Conclusiones</div>
+  <h1>Conclusiones</h1>
+  <div class="row" style="flex-wrap:wrap;gap:14px;margin-top:10px">
+    <div class="card" style="flex:1 1 45%"><h3>1. Jerarquía del impacto</h3><p>La elección del modelo cambia la altura entre decímetros y metros; el método de interpolación, solo centímetros.</p></div>
+    <div class="card verde" style="flex:1 1 45%"><h3>2. Mejor método</h3><p>La bicúbica es la mejor con los dos criterios (malla y nivelación). La bilineal es la alternativa simple y trazable.</p></div>
+    <div class="card" style="flex:1 1 45%"><h3>3. Sustitución de GeoCol2004</h3><p>QGeoidCOL2023 corrige el sesgo de ~2 m de GeoCol2004 y está referido al IHRS.</p></div>
+    <div class="card" style="flex:1 1 45%"><h3>4. Red Nacional de Nivelación</h3><p>QGeoidCOL2023 la describe mejor que EGM2008 (δH 0,18 m vs. 1,07 m, menor dispersión). El datum vertical está ~1 m desplazado del geoide global.</p></div>
+    <div class="card rojo" style="flex:1 1 100%"><h3>5. Limitaciones</h3><p>Cinco puntos de control no bastan para estimar la exactitud de los modelos; en montaña las diferencias son de decímetros y la red conserva inclinaciones sistemáticas.</p></div>
+  </div>
+  <div class="num">17</div>
+</section>
+
+<!-- 18 GRACIAS -->
+<section class="slide gracias">
+  <h1>¡Gracias por su atención!</h1>
+  <div style="height:40px"></div>
+  <p>Guimarães, G. N. et al. (2025). High-resolution regional gravity field modeling to connect the local vertical systems in South America to the IHRF. <i>Earth, Planets and Space</i>, 77, 98.</p>
+  <p>Liu, Q. et al. (2024). Documento técnico de QGeoidCOL2023. <i>Earth, Planets and Space</i>, 76, 35.</p>
+  <p>Datos: IGAC – Red Geodésica Nacional · ICGEM (GFZ Potsdam) · Pavlis et al. (2012), EGM2008.</p>
+  <div class="num" style="color:#9fc5e8">18</div>
+</section>
+
+<div class="ayuda">Imprimir (Ctrl+P) → «Guardar como PDF» para obtener las diapositivas</div>
+</body>
+</html>

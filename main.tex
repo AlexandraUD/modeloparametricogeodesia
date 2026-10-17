@@ -1028,6 +1028,389 @@ $p$ \textbackslash{} $k$ & 4 & 8 & 16 & 32 & $n$ \textbackslash{} semiancho & 4 
 \footnotesize Referencias en la misma prueba: bilineal \SI{86.6}{mm}; bicúbica \SI{58.0}{mm}.
 \end{table}
 
+\subsection{Modelo paramétrico de la discrepancia con la Red Nacional de Nivelación (Python)}
+\label{sec:parametrico}
+
+Como complemento a la interpolación de la malla se desarrolló en Python una segunda
+herramienta. Con ella se evalúa qué tan bien describen los modelos de geoide las alturas de
+la Red Nacional de Nivelación, usando los puntos del archivo \texttt{coords\_QGEOID2023.txt}
+(IGAC). Las mallas analizadas son QGeoidCOL2023 y EGM2008. Esta última se generó en el
+servicio ICGEM \citep{ince2019} para la región de
+Colombia\footnote{\url{https://icgem.gfz.de/calc_res/d533101e8204f4397361b8d33267c6ed173ceea602f93b06f39678a51579bc4c}}.
+El procedimiento sigue el planteamiento de \citet{guimaraes2025} para conectar los sistemas
+verticales locales de Sudamérica con el IHRF y tiene cuatro etapas: homogeneizar el sistema de
+mareas, depurar los datos, interpolar el geoide con los seis métodos de la
+Sección~\ref{sec:marco} y ajustar un modelo paramétrico a la discrepancia.
+
+\subsubsection{Discrepancia entre alturas y geoide}
+En cada punto nivelado se conocen la altura elipsoidal $h$ y la altura sobre el nivel del mar
+$H$. La ondulación $N$ se interpola de la malla en la posición $(\varphi,\lambda)$ del punto.
+Según la ecuación~\eqref{eq:alturas}, si los tres valores fueran exactos se cumpliría $h=H+N$.
+En la práctica queda una diferencia, la \textbf{discrepancia}:
+\begin{equation}
+l = h - H - N .
+\label{eq:discrepancia}
+\end{equation}
+Si $l$ fuera igual en todos los puntos, el nivel de referencia de la red (el datum de
+Buenaventura) estaría desplazado una cantidad constante respecto al geoide del modelo. Si
+$l$ cambia de un punto a otro, hay inclinaciones de la red, errores de nivelación o
+imprecisiones del modelo. En la red colombiana $H$ es una altura normal-ortométrica, así que,
+tanto con QGeoidCOL2023 (que entrega $\zeta$) como con EGM2008 (que entrega $N$), la
+discrepancia incluye además la diferencia conceptual de la ecuación~\eqref{eq:nzeta}.
+
+\subsubsection{Homogeneización al sistema de mareas \emph{zero tide}}
+La atracción permanente del Sol y la Luna deforma la Tierra y el geoide. Según cómo se trate
+ese efecto existen tres convenciones: \emph{tide free}, \emph{mean tide} y \emph{zero tide}. Para
+que la ecuación~\eqref{eq:discrepancia} tenga sentido, $h$, $H$ y $N$ deben estar en la misma
+convención, y aquí se adopta \emph{zero tide}, que es la del IHRS. El usuario declara el sistema
+de cada dato y la herramienta solo corrige lo que no está en \emph{zero tide}. En los datos de
+este ejercicio las alturas elipsoidales vienen en \emph{tide free}, las niveladas en \emph{mean
+tide}, QGeoidCOL2023 en \emph{zero tide} y EGM2008 en \emph{tide free}, como lo indica el
+encabezado del archivo de ICGEM. Para las alturas se usan las expresiones de \citet{guimaraes2025}:
+\begin{align}
+H_{ZT} &= H_{MT} - 0{,}198\left(\tfrac{3}{2}\sin^2\varphi-\tfrac{1}{2}\right), \label{eq:mareaH}\\
+h_{ZT} &= h_{TF} + 0{,}0602 - 0{,}1790\,\sin^2\varphi - 0{,}0018\,\sin^4\varphi, \label{eq:mareah}
+\end{align}
+en metros. El artículo no da una expresión para las mallas; para ellas se usó la que se
+deduce de la ecuación~\eqref{eq:mareaH} con el número de Love $k=0{,}3$:
+\begin{equation}
+N_{ZT} = N_{TF} + k\left[-0{,}198\left(\tfrac{3}{2}\sin^2\varphi-\tfrac{1}{2}\right)\right],
+\qquad k=0{,}3 .
+\label{eq:mareaN}
+\end{equation}
+En el área de los puntos ($\varphi$ entre $1{,}3^\circ$ y $11{,}5^\circ$), $h$ aumenta entre
+\SI{5.3}{cm} y \SI{6.0}{cm} y $H$ entre \SI{8.7}{cm} y \SI{9.9}{cm}. Por eso la discrepancia
+disminuye entre \SI{3.4}{cm} y \SI{3.9}{cm}. La malla EGM2008 sube entre \SI{2.6}{cm} y \SI{3.0}{cm} y
+se exporta convertida, con el mismo formato del archivo original.
+
+\subsubsection{Depuración de los datos}
+Antes del ajuste se revisan los puntos y se apartan los que tienen errores evidentes
+(Tabla~\ref{tab:depuracion}). Ningún punto se descarta sin registro: todos quedan en
+\texttt{puntos\_rechazados.xlsx} con la regla que incumplieron. La regla de error grueso
+calcula la discrepancia de cada punto con interpolación bilineal y la compara con la del
+resto mediante la mediana y la desviación absoluta mediana (MAD). Ninguno de los dos
+estadísticos se deja arrastrar por los propios valores atípicos:
+\begin{equation}
+\left|\,l - \operatorname{med}(l)\,\right| > c\cdot 1{,}4826\cdot\operatorname{MAD}(l),
+\qquad c=5 \text{ por defecto}.
+\label{eq:grueso}
+\end{equation}
+El factor $1{,}4826$ hace que $1{,}4826\cdot\mathrm{MAD}$ sea comparable con una desviación
+estándar, y un umbral $c$ mayor aparta menos puntos.
+
+\begin{table}[H]
+\centering
+\caption{Reglas de depuración de los puntos de la Red Nacional de Nivelación.}
+\label{tab:depuracion}
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lp{12.4cm}@{}}
+\toprule
+Regla & Se aparta el punto cuando \\
+\midrule
+R1 & falta un dato o un valor no es numérico. \\
+R2 & la latitud o la longitud están fuera de rango. \\
+R3 & el identificador o las coordenadas están repetidos. \\
+R4 & $h=0$ con $H>\SI{1}{m}$ (altura elipsoidal faltante). \\
+R5 & $|h-H|>\SI{150}{m}$ (ninguna ondulación alcanza ese valor). \\
+R6 & su discrepancia cumple la condición~\eqref{eq:grueso} en alguna malla (error grueso). \\
+R7 & queda fuera de la cobertura de alguna malla. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Interpolación y semivariograma del kriging}
+El valor de $N$ en cada punto se obtiene con los seis métodos de la Sección~\ref{sec:marco}, con
+las mismas implementaciones de la aplicación de MATLAB. En el kriging ordinario, el
+semivariograma experimental de una ventana local se ajusta a los modelos esférico,
+exponencial, gaussiano y circular, y se elige el de menor suma de cuadrados ponderada de los
+residuos:
+\begin{equation}
+\mathrm{SSR_w}=\sum_{k} n_k\left[\hat\gamma(h_k)-\gamma(h_k;\theta)\right]^2,
+\label{eq:ssrw}
+\end{equation}
+donde $n_k$ es el número de pares de nodos del rezago $k$. Así, un rezago calculado con más
+pares, y por tanto más confiable, pesa más en el ajuste (Figura~\ref{fig:semivario}). Los
+puntos que caen en la misma celda de la malla comparten ventana, de modo que se ajusta un
+semivariograma por celda y no por punto: 
+644 con QGeoidCOL2023 y 
+1528 con EGM2008.
+Para el IDW, el exponente $p$ puede sugerirse con la validación cruzada por decimación de la
+Sección~\ref{sec:cvmetodo}, eligiendo el valor de menor RMSE entre $p=0{,}5$ y $p=6$. En
+las dos mallas el valor sugerido fue $p=6$, y es el que se usó.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.99\linewidth]{figuras/semivariokriging.png}
+\caption{Semivariograma local del kriging ordinario en la herramienta de Python: valores
+experimentales (tamaño proporcional al número de pares), los cuatro modelos ajustados y el
+elegido por menor $\mathrm{SSR_w}$.}
+\label{fig:semivario}
+\end{figure}
+
+\subsubsection{Modelo paramétrico y selección del método}
+La parte sistemática de la discrepancia se representa con el modelo de \citet{guimaraes2025},
+que supone un desplazamiento vertical común más una inclinación norte--sur y otra este--oeste:
+\begin{equation}
+l_P = \delta H + x_1\,(\varphi_P-\varphi_0) + x_2\,(\lambda_P-\lambda_0)\cos\varphi_P + v_P .
+\label{eq:modelo18}
+\end{equation}
+En el modelo, $\delta H$ es el \textbf{desplazamiento vertical medio} del datum respecto al
+geoide del modelo (m) y $x_1$ y $x_2$ son las inclinaciones norte--sur y este--oeste (m por
+grado). $(\varphi_0,\lambda_0)$ es la posición media de los puntos y $v_P$ el residuo. El
+factor $\cos\varphi_P$ hace comparables los grados de longitud con los de latitud. En forma
+matricial, $\mathbf{l}=\mathbf{A}\mathbf{x}+\mathbf{v}$ con $\mathbf{x}=(\delta H,\,x_1,\,x_2)^T$, y el
+sistema se resuelve por mínimos cuadrados con todos los puntos con el mismo peso
+($\mathbf{P}=\mathbf{I}$):
+\begin{equation}
+\hat{\mathbf{x}}=(\mathbf{A}^T\mathbf{P}\mathbf{A})^{-1}\mathbf{A}^T\mathbf{P}\,\mathbf{l},
+\qquad
+\hat\sigma_0^2=\frac{\mathbf{v}^T\mathbf{v}}{n-u},
+\qquad
+\sigma_{\hat x_k}=\hat\sigma_0\sqrt{\left[(\mathbf{A}^T\mathbf{A})^{-1}\right]_{kk}} ,
+\label{eq:mmcc}
+\end{equation}
+con $n$ el número de puntos y $u$ el de parámetros. El modelo se ajusta seis veces, una con
+el $N$ de cada método y siempre con los mismos puntos. Para comparar los ajustes se usa el
+coeficiente de determinación ajustado, que indica qué fracción de la variación de $l$
+explica el modelo y corrige el $R^2$ según el número de parámetros:
+\begin{equation}
+R^2 = 1-\frac{\sum v_P^2}{\sum (l_P-\bar l)^2},
+\qquad
+R^2_{aj} = 1-(1-R^2)\,\frac{n-1}{n-u}.
+\label{eq:r2aj}
+\end{equation}
+El mejor método es el de mayor $R^2_{aj}$; como criterio adicional se reporta $\hat\sigma_0$.
+La herramienta también permite usar la superficie de corrección de cuatro parámetros,
+$l_P=x_0+x_1\cos\varphi_P\cos\lambda_P+x_2\cos\varphi_P\sin\lambda_P+x_3\sin\varphi_P$. Es más
+flexible, pero sus coeficientes no tienen una interpretación física individual.
+
+\subsubsection{Estructura del código}
+La implementación tiene dos archivos que deben estar en la misma carpeta y que solo usan la
+biblioteca estándar de Python ($\geq 3.8$), sin \texttt{numpy} ni otras dependencias:
+\begin{itemize}
+    \item \texttt{parametrico1.py}: \textbf{núcleo de cálculo}. Hace todos los cálculos y
+    también se puede ejecutar solo, desde la consola, en modo interactivo o con opciones de
+    línea de comandos.
+    \item \texttt{parametrico2.py}: \textbf{interfaz gráfica} en \texttt{tkinter}. Importa el
+    núcleo (\texttt{import parametrico1 as mp}) y no repite ningún cálculo, por lo que las dos
+    formas de uso dan resultados idénticos.
+\end{itemize}
+El núcleo está organizado por etapas (Tabla~\ref{tab:estructura_py}). Igual que en la
+aplicación de MATLAB, cada método devuelve solo los índices de los nodos y sus pesos.
+$\hat N=\sum w_iN_i$ se calcula en una función común (\texttt{interpolar}), que además
+verifica la suma de pesos y rechaza el resultado si falta un nodo con peso no nulo.
+
+\begin{table}[H]
+\centering
+\caption{Organización de \texttt{parametrico1.py} por etapas.}
+\label{tab:estructura_py}
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}p{3.4cm}p{11.8cm}@{}}
+\toprule
+Etapa & Funciones principales \\
+\midrule
+Sistema de mareas & \texttt{correccion\_h}, \texttt{correccion\_H}, \texttt{correccion\_N}
+(ecuaciones~\eqref{eq:mareaH}--\eqref{eq:mareaN}); \texttt{aplicar\_marea\_malla},
+\texttt{exportar\_malla\_zero\_tide}. \\
+Lectura y depuración & \texttt{leer\_tabla}, \texttt{leer\_puntos} (R1--R5),
+\texttt{cargar\_malla} (malla \emph{lat lon N} o formato ICGEM), \texttt{depurar\_contra\_mallas} (R6--R7). \\
+Interpolación & \texttt{interpolar} (núcleo común) y \texttt{pesos\_vecino},
+\texttt{pesos\_triangulos}, \texttt{pesos\_bilineal}, \texttt{pesos\_bicubica},
+\texttt{pesos\_idw}, \texttt{pesos\_kriging}; \texttt{proyectar\_origen\_nacional} (EPSG:9377). \\
+Kriging ordinario & \texttt{ajustar\_variograma} (semivariograma y covariograma
+experimentales, ajuste por $\mathrm{SSR_w}$), \texttt{fminsearch} (Nelder--Mead equivalente al de MATLAB),
+\texttt{resolver} (eliminación gaussiana con pivoteo). \\
+Modelo y selección & \texttt{ajustar\_modelo} (ecuaciones~\eqref{eq:modelo18}--\eqref{eq:r2aj}),
+\texttt{procesar\_malla} (seis métodos y mayor $R^2_{aj}$), \texttt{validacion\_idw} (sugerencia de $p$). \\
+Flujo y salidas & \texttt{ejecutar} (flujo completo, usado por la consola y por la interfaz),
+\texttt{escribir\_csv}, \texttt{escribir\_xlsx}. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{lstlisting}[language=Python, literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1 {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1 {Ñ}{{\~N}}1 {ü}{{\"u}}1, caption={Corrección de las alturas al sistema \emph{zero tide} (fragmento de \texttt{parametrico1.py}).}]
+def delta_H_mt_a_zt(lat):
+    """Ec. (1)-(2): corrección de H de mean tide a zero tide [m]."""
+    s2 = math.sin(math.radians(lat)) ** 2
+    return -0.198 * (1.5 * s2 - 0.5)
+
+def delta_h_tf_a_zt(lat):
+    """Ec. (3): corrección de h de tide free a zero tide [m]."""
+    s2 = math.sin(math.radians(lat)) ** 2
+    return 0.0602 - 0.1790 * s2 - 0.0018 * s2 * s2
+
+def correccion_h(lat, sistema):
+    """Corrección a sumar a h para llevarla a zero tide."""
+    if sistema == 'zero_tide':
+        return 0.0                         # ya está en zero tide: no se modifica
+    if sistema == 'tide_free':
+        return delta_h_tf_a_zt(lat)
+    return 0.0                             # en mean tide la corteza es la misma
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1 {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1 {Ñ}{{\~N}}1 {ü}{{\"u}}1, caption={Ajuste del modelo de desplazamiento e inclinación y cálculo de $R^2_{aj}$ (fragmento de \texttt{ajustar\_modelo}).}]
+for p in puntos:                           # una fila de A por punto
+    f, la = p['lat'], p['lon']
+    filas.append([1.0, f - phi0, (la - lam0) * math.cos(math.radians(f))])
+N = [[sum(r[a] * r[b] for r in filas) for b in range(u)] for a in range(u)]  # matriz normal
+t = [sum(r[a] * li for r, li in zip(filas, l)) for a in range(u)]          # término independiente
+x, _ = resolver(N, t)                      # parámetros: dH, x1, x2
+v = [li - sum(ra * xa for ra, xa in zip(r, x)) for r, li in zip(filas, l)]  # residuos
+r2 = 1 - sum(e * e for e in v) / sum((li - media) ** 2 for li in l)
+r2adj = 1 - (1 - r2) * (n - 1) / (n - u)   # coeficiente de determinación ajustado
+\end{lstlisting}
+
+La interfaz (\texttt{parametrico2.py}) guía al usuario con siete pestañas, una por paso:
+\begin{enumerate}
+    \item guía y teoría;
+    \item puntos: qué columna es la latitud, la longitud, $h$ y $H$, y en qué sistema de mareas
+    vienen las alturas;
+    \item mallas, con el sistema de mareas de cada una;
+    \item mapa con $N$ en colores, curvas de nivel, cobertura de cada malla y ubicación de los
+    puntos;
+    \item parámetros y ejecución, con barra de progreso y bitácora;
+    \item resultados: parámetros $\pm\sigma$, $\hat\sigma_0$, $R^2$ y $R^2_{aj}$ de cada método,
+    y los puntos apartados;
+    \item kriging ordinario: resumen de todos los semivariogramas locales (mediana y franja
+    P10--P90) o semivariograma y covariograma de un punto.
+\end{enumerate}
+El cálculo corre en un hilo aparte para que la ventana no se bloquee. Los resultados se guardan
+en la carpeta \texttt{resultados}:
+\begin{itemize}
+    \item \texttt{coordenadas\_zero\_tide.xlsx}, \texttt{puntos\_rechazados.xlsx} y
+    \texttt{resumen\_modelos.xlsx};
+    \item \texttt{interpolacion\_<malla>.csv}, con $N$, $l$ y $v$ de los seis métodos en cada
+    punto;
+    \item \texttt{reporte.txt}, con la bitácora completa.
+\end{itemize}
+
+\subsubsection{Datos y cobertura}
+La Figura~\ref{fig:mallapython} muestra la malla EGM2008 de fondo ($571\times511$ nodos, paso
+de $2'$), la cobertura de QGeoidCOL2023 (rectángulo punteado) y los puntos de la Red Nacional
+de Nivelación. Los puntos siguen los circuitos de nivelación a lo largo de la región andina y
+del norte del país, entre $\varphi=1{,}25^\circ$ y $11{,}54^\circ$ y entre
+$\lambda=-77{,}37^\circ$ y $-72{,}13^\circ$. Todos quedan dentro de la cobertura de las dos
+mallas, por lo que ningún punto se apartó por la regla R7. De los 
+4272 registros se
+aceptaron 
+4210 y se apartaron 62:
+\begin{itemize}
+    \item 22 con altura elipsoidal nula (R4);
+    \item 3 con coordenadas repetidas (R3);
+    \item 2 con $|h-H|>\SI{150}{m}$ (R5);
+    \item 35 por error grueso (R6). Este grupo incluye saltos de unos \SI{-22}{m} en una misma
+    línea y casos con $h$ y $H$ aparentemente intercambiadas.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{figuras/mallapython.png}
+\caption{Malla EGM2008 (ondulación $N$ en colores y curvas de nivel), cobertura de
+QGeoidCOL2023 (rectángulo punteado) y puntos de la Red Nacional de Nivelación (en negro).}
+\label{fig:mallapython}
+\end{figure}
+
+\subsubsection{Resultados del modelo paramétrico}
+Las Tablas~\ref{tab:param_qgeoid} y~\ref{tab:param_egm} presentan los parámetros del
+modelo~\eqref{eq:modelo18} para cada método de interpolación, con las alturas y las mallas en
+\emph{zero tide} y $n=4210$ puntos. En la bicúbica los 4210 puntos son aplicables, porque
+ninguno cae en una celda de borde. El IDW se evaluó con $p=6$ y $k=16$.
+
+\begin{table}[H]
+\centering
+\caption{Modelo de desplazamiento e inclinación con QGeoidCOL2023 ($n=4210$). $x_1$ y $x_2$
+en m por grado. En negrita, el método de mayor $R^2_{aj}$.}
+\label{tab:param_qgeoid}
+\small
+\begin{adjustbox}{max width=\linewidth}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Método & $\delta H$ (m) & $x_1$ & $x_2$ & $\hat\sigma_0$ (m) & $R^2$ & $R^2_{aj}$ \\
+\midrule
+Vecino más cercano    & $0{,}1809\pm0{,}0061$ & $-0{,}0452\pm0{,}0030$ & $-0{,}0176\pm0{,}0063$ & $0{,}3939$ & $0{,}1027$ & $0{,}1023$ \\
+Lineal por triángulos & $0{,}1755\pm0{,}0036$ & $-0{,}0382\pm0{,}0018$ & $-0{,}0178\pm0{,}0038$ & $0{,}2360$ & $0{,}1927$ & $0{,}1923$ \\
+Bilineal              & $0{,}1731\pm0{,}0036$ & $-0{,}0375\pm0{,}0018$ & $-0{,}0170\pm0{,}0038$ & $0{,}2365$ & $0{,}1852$ & $0{,}1848$ \\
+\textbf{Bicúbica}     & $\mathbf{0{,}1827\pm0{,}0036}$ & $-0{,}0396\pm0{,}0018$ & $-0{,}0169\pm0{,}0037$ & $\mathbf{0{,}2320}$ & $0{,}2056$ & $\mathbf{0{,}2053}$ \\
+IDW ($p=6$)           & $0{,}1799\pm0{,}0049$ & $-0{,}0424\pm0{,}0024$ & $-0{,}0183\pm0{,}0051$ & $0{,}3100$ & $0{,}1368$ & $0{,}1364$ \\
+Kriging ordinario     & $0{,}1685\pm0{,}0037$ & $-0{,}0376\pm0{,}0018$ & $-0{,}0050\pm0{,}0039$ & $0{,}2400$ & $0{,}1542$ & $0{,}1538$ \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Modelo de desplazamiento e inclinación con EGM2008 ($n=4210$). $x_1$ y $x_2$ en m
+por grado. En negrita, el método de mayor $R^2_{aj}$.}
+\label{tab:param_egm}
+\small
+\begin{adjustbox}{max width=\linewidth}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Método & $\delta H$ (m) & $x_1$ & $x_2$ & $\hat\sigma_0$ (m) & $R^2$ & $R^2_{aj}$ \\
+\midrule
+Vecino más cercano    & $1{,}0715\pm0{,}0054$ & $-0{,}0931\pm0{,}0027$ & $-0{,}0264\pm0{,}0056$ & $0{,}3516$ & $0{,}3637$ & $0{,}3634$ \\
+Lineal por triángulos & $1{,}0726\pm0{,}0050$ & $-0{,}0911\pm0{,}0025$ & $-0{,}0274\pm0{,}0052$ & $0{,}3258$ & $0{,}3917$ & $0{,}3914$ \\
+Bilineal              & $1{,}0721\pm0{,}0050$ & $-0{,}0910\pm0{,}0025$ & $-0{,}0272\pm0{,}0052$ & $0{,}3258$ & $0{,}3909$ & $0{,}3906$ \\
+\textbf{Bicúbica}     & $\mathbf{1{,}0742\pm0{,}0050}$ & $-0{,}0915\pm0{,}0025$ & $-0{,}0274\pm0{,}0052$ & $0{,}3266$ & $0{,}3926$ & $\mathbf{0{,}3923}$ \\
+IDW ($p=6$)           & $1{,}0718\pm0{,}0052$ & $-0{,}0924\pm0{,}0026$ & $-0{,}0268\pm0{,}0054$ & $0{,}3375$ & $0{,}3802$ & $0{,}3799$ \\
+Kriging ordinario     & $1{,}0734\pm0{,}0050$ & $-0{,}0912\pm0{,}0025$ & $-0{,}0267\pm0{,}0052$ & $0{,}3266$ & $0{,}3899$ & $0{,}3897$ \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\end{table}
+
+\begin{analisisBox}{Análisis de los resultados del modelo paramétrico}
+\begin{itemize}
+    \item \textbf{Desplazamiento del datum.} Con EGM2008, el datum de Buenaventura queda
+    \SI{1.07}{m} por encima del geoide del modelo. Este valor es del mismo orden que los
+    $0{,}99\pm0{,}03$~m de \citet{guimaraes2025} para Colombia con su modelo regional y que la
+    diferencia media de \SI{1.10}{m} que esos autores reportan frente a EGM2008. La diferencia de
+    unos \SI{8}{cm} es razonable, porque el conjunto de puntos y el modelo de geoide no son los
+    mismos. Con QGeoidCOL2023 el desplazamiento es de solo \SI{0.18}{m}, lo que indica que este
+    modelo ya está referido en buena medida a la red de nivelación colombiana.
+    \item \textbf{Inclinaciones.} $x_1$ es negativo con las dos mallas: la discrepancia
+    disminuye hacia el norte unos \SI{4}{cm} por grado con QGeoidCOL2023 y \SI{9}{cm} por grado
+    con EGM2008. Esto equivale a \SI{0.4}{m} y \SI{0.9}{m} a lo largo de los $10^\circ$ de
+    latitud que cubre la red. La inclinación este--oeste ($x_2$) es menor, de \SI{-2}{cm} a
+    \SI{-3}{cm} por grado. Una tendencia norte--sur de este tamaño es compatible con la
+    acumulación de errores sistemáticos de la nivelación a medida que se aleja del datum, ubicado
+    en el suroccidente.
+    \item \textbf{Capacidad explicativa.} El $R^2_{aj}$ es bajo ($0{,}21$ con QGeoidCOL2023 y
+    $0{,}39$ con EGM2008): el desplazamiento y las dos inclinaciones explican solo una parte de
+    la variación de $l$. El resto es variación local, asociada sobre todo a la cordillera y a
+    los errores de cada circuito. La dispersión remanente $\hat\sigma_0$ es menor con
+    QGeoidCOL2023 (\SI{0.23}{m}) que con EGM2008 (\SI{0.33}{m}), lo que confirma que el modelo
+    nacional describe mejor la red.
+    \item \textbf{Mejor método.} La \textbf{bicúbica} obtiene el mayor $R^2_{aj}$ con las dos
+    mallas, lo que coincide con la validación cruzada de la Sección~\ref{sec:cvmetodo}. Con
+    QGeoidCOL2023 (paso de $5'$) el método sí importa:
+    \begin{itemize}
+        \item el vecino más cercano duplica la dispersión ($\hat\sigma_0=\SI{0.39}{m}$);
+        \item el IDW con $p=6$, que se aproxima al vecino más cercano, también queda rezagado
+        ($\hat\sigma_0=\SI{0.31}{m}$). El exponente que mejor reconstruye la propia malla no es
+        necesariamente el que mejor representa $N$ en los puntos nivelados;
+        \item el kriging suaviza el campo y casi anula la inclinación este--oeste.
+    \end{itemize}
+    Con EGM2008 (paso de $2'$) la malla es más densa y todos los métodos, salvo el vecino más
+    cercano y el IDW, quedan prácticamente empatados: $R^2_{aj}$ entre $0{,}3897$ y $0{,}3923$, y
+    la bilineal tiene un $\hat\sigma_0$ apenas \SI{0.8}{mm} menor que la bicúbica.
+    \item \textbf{Estabilidad de $\delta H$.} El desplazamiento cambia poco con el método:
+    \SI{1.4}{cm} entre extremos con QGeoidCOL2023 y \SI{0.3}{cm} con EGM2008. Su incertidumbre
+    formal, de \SI{4}{mm} a \SI{6}{mm}, es pequeña por el gran número de puntos y no incluye los
+    errores sistemáticos de la nivelación.
+\end{itemize}
+\end{analisisBox}
+
+
+
+
+
+
+
+
 % =====================================================================
 \section{Comparación con GeoCol2004 y EGM2008}
 \label{sec:modelos}
@@ -1554,6 +1937,13 @@ por el IGAC). \textit{Earth, Planets and Space}, 76, 35.
 \bibitem[Sánchez(2003)]{sanchez2003}
 Sánchez, L. (2003). \textit{Determinación de la superficie vertical de referencia para Colombia}.
 Tesis doctoral, Technische Universität Dresden (citada en la ficha de GEOCOL2004 de ISG).
+
+\bibitem[Guimarães et~al.(2025)]{guimaraes2025}
+Guimarães, G.N., Matos, A.C.O.C., Blitzkow, D., Almeida, F.G.V. (2025). High-resolution
+regional gravity field modeling to connect the local vertical systems in South America to
+the IHRF. \textit{Earth, Planets and Space}, 77, 98.
+\url{https://doi.org/10.1186/s40623-025-02226-5}
+
 
 \end{thebibliography}
 
